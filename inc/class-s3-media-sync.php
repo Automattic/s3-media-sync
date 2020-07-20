@@ -53,12 +53,13 @@ class S3_Media_Sync {
 	 */
 	public function add_attachment_to_s3( $post_id ) {
 		// Grab the source and destination paths
-		$source = wp_get_upload_dir();
-		$bucket = $this->get_s3_bucket_url();
-		$path	= str_replace( $source['baseurl'], '', wp_get_attachment_url( $post_id ) );
+		$source           = wp_get_upload_dir();
+		$bucket           = $this->get_s3_bucket_url();
+		$source_path	  = str_replace( $source['baseurl'], '', wp_get_attachment_url( $post_id ) );
+		$destination_path = wp_parse_url( wp_get_attachment_url( $post_id ) )['path'];
 
 		// Copy the attachment over to S3
-		copy( $source['basedir'] . $path, trailingslashit( $bucket ) . 'wp-content/uploads' . $path );
+		copy( $source['basedir'] . $source_path, $bucket . $destination_path );
 	}
 
 	/**
