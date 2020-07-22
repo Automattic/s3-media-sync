@@ -43,9 +43,11 @@ class S3_Media_Sync {
 		add_action( 'admin_menu', [ $this, 'register_menu_settings' ] );
 		add_action( 'admin_init', [ $this, 'settings_screeen_init' ] );
 
-		// Perform on-the-fly media syncs by hooking into these actions
-		add_action( 'add_attachment', [ $this, 'add_attachment_to_s3' ], 10, 1 );
-		add_action( 'delete_attachment', [ $this, 'delete_attachment_from_s3' ], 10, 1 );
+		if ( ! empty( $this->settings ) ) {
+			// Perform on-the-fly media syncs by hooking into these actions
+			add_action( 'add_attachment', [ $this, 'add_attachment_to_s3' ], 10, 1 );
+			add_action( 'delete_attachment', [ $this, 'delete_attachment_from_s3' ], 10, 1 );
+		}
 	}
 
 	/**
