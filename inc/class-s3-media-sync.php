@@ -45,7 +45,7 @@ class S3_Media_Sync {
 
 		if ( ! empty( $this->settings ) ) {
 			// Perform on-the-fly media syncs by hooking into these actions
-			add_action( 'add_attachment', [ $this, 'add_attachment_to_s3' ], 10, 1 );
+			add_filter( 'wp_handle_upload', [ $this, 'add_attachment_to_s3' ], 10, 2 );
 			add_action( 'delete_attachment', [ $this, 'delete_attachment_from_s3' ], 10, 1 );
 		}
 	}
@@ -53,15 +53,15 @@ class S3_Media_Sync {
 	/**
 	 * Trigger an upload to S3 to keep the media backups in sync
 	 */
-	public function add_attachment_to_s3( $post_id ) {
+	public function add_attachment_to_s3( $upload, $context ) {
 		// Grab the source and destination paths
-		$source           = wp_get_upload_dir();
-		$bucket           = $this->get_s3_bucket_url();
-		$source_path	  = str_replace( $source['baseurl'], '', wp_get_attachment_url( $post_id ) );
-		$destination_path = wp_parse_url( wp_get_attachment_url( $post_id ) )['path'];
+		$source_path      = $upload['file'];
+		$destination_path = $this->get_s3_bucket_url() . wp_parse_url( $upload['url'] )['path'];
 
 		// Copy the attachment over to S3
-		copy( $source['basedir'] . $source_path, $bucket . $destination_path );
+		copy( $source_path, $destination_path );
+
+		return $upload;
 	}
 
 	/**
