@@ -301,6 +301,8 @@ class S3_Media_Sync {
 
 			$params['request.options']['proxy'] = $proxy_auth . $proxy_address;
 		}
+		
+		$params = apply_filters( 's3_media_sync_s3_client_params', $params );
 
 		$this->s3 = Aws\S3\S3Client::factory( $params );
 
