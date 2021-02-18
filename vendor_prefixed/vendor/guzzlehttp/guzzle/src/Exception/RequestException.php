@@ -2,6 +2,8 @@
 
 namespace WPCOM_VIP\GuzzleHttp\Exception;
 
+use WPCOM_VIP\GuzzleHttp\BodySummarizer;
+use WPCOM_VIP\GuzzleHttp\BodySummarizerInterface;
 use WPCOM_VIP\Psr\Http\Client\RequestExceptionInterface;
 use WPCOM_VIP\Psr\Http\Message\RequestInterface;
 use WPCOM_VIP\Psr\Http\Message\ResponseInterface;
@@ -42,15 +44,16 @@ class RequestException extends \WPCOM_VIP\GuzzleHttp\Exception\TransferException
     /**
      * Factory method to create a new exception with a normalized error message
      *
-     * @param RequestInterface  $request  Request
-     * @param ResponseInterface $response Response received
-     * @param \Throwable        $previous Previous exception
-     * @param array             $ctx      Optional handler context.
+     * @param RequestInterface             $request        Request sent
+     * @param ResponseInterface            $response       Response received
+     * @param \Throwable|null              $previous       Previous exception
+     * @param array                        $handlerContext Optional handler context
+     * @param BodySummarizerInterface|null $bodySummarizer Optional body summarizer
      */
-    public static function create(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, \WPCOM_VIP\Psr\Http\Message\ResponseInterface $response = null, \Throwable $previous = null, array $ctx = []) : self
+    public static function create(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, \WPCOM_VIP\Psr\Http\Message\ResponseInterface $response = null, \Throwable $previous = null, array $handlerContext = [], \WPCOM_VIP\GuzzleHttp\BodySummarizerInterface $bodySummarizer = null) : self
     {
         if (!$response) {
-            return new self('Error completing request', $request, null, $previous, $ctx);
+            return new self('Error completing request', $request, null, $previous, $handlerContext);
         }
         $level = (int) \floor($response->getStatusCode() / 100);
         if ($level === 4) {
@@ -68,11 +71,11 @@ class RequestException extends \WPCOM_VIP\GuzzleHttp\Exception\TransferException
         // Client Error: `GET /` resulted in a `404 Not Found` response:
         // <html> ... (truncated)
         $message = \sprintf('%s: `%s %s` resulted in a `%s %s` response', $label, $request->getMethod(), $uri, $response->getStatusCode(), $response->getReasonPhrase());
-        $summary = \WPCOM_VIP\GuzzleHttp\Psr7\get_message_body_summary($response);
+        $summary = ($bodySummarizer ?? new \WPCOM_VIP\GuzzleHttp\BodySummarizer())->summarize($response);
         if ($summary !== null) {
             $message .= ":\n{$summary}\n";
         }
-        return new $className($message, $request, $response, $previous, $ctx);
+        return new $className($message, $request, $response, $previous, $handlerContext);
     }
     /**
      * Obfuscates URI if there is a username and a password present

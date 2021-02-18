@@ -28,6 +28,7 @@ class FnStream implements \WPCOM_VIP\Psr\Http\Message\StreamInterface
     }
     /**
      * Lazily determine which methods are not implemented.
+     *
      * @throws \BadMethodCallException
      */
     public function __get($name)

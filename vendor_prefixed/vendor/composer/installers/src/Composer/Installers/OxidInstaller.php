@@ -12,7 +12,7 @@ class OxidInstaller extends \WPCOM_VIP\Composer\Installers\BaseInstaller
      *
      * @param PackageInterface $package
      * @param string $frameworkType
-     * @return void
+     * @return string
      */
     public function getInstallPath(\WPCOM_VIP\Composer\Package\PackageInterface $package, $frameworkType = '')
     {

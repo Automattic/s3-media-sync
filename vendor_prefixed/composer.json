@@ -4,12 +4,12 @@
     "minimum-stability": "dev",
     "require": {
         "composer\/installers": "~1.0",
-        "aws\/aws-sdk-php": "~3.150.1"
-    },
-    "require-dev": {
+        "aws\/aws-sdk-php": "~3.150.1",
         "humbug\/php-scoper": "^0.14.0"
     },
     "scripts": {
+        "post-install-cmd": "@prefix-dependencies",
+        "post-update-cmd": "@prefix-dependencies",
         "prefix-dependencies": [
             "@php .\/vendor\/bin\/php-scoper add-prefix --output-dir=.\/vendor_prefixed --force",
             "composer --working-dir=.\/vendor_prefixed dumpautoload -o"

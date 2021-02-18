@@ -109,7 +109,7 @@ class CachingStream implements \WPCOM_VIP\Psr\Http\Message\StreamInterface
     private function cacheEntireStream()
     {
         $target = new \WPCOM_VIP\GuzzleHttp\Psr7\FnStream(['write' => 'strlen']);
-        copy_to_stream($this, $target);
+        \WPCOM_VIP\GuzzleHttp\Psr7\Utils::copyToStream($this, $target);
         return $this->tell();
     }
 }

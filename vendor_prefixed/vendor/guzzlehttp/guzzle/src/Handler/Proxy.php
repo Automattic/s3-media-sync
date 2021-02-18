@@ -7,6 +7,8 @@ use WPCOM_VIP\GuzzleHttp\RequestOptions;
 use WPCOM_VIP\Psr\Http\Message\RequestInterface;
 /**
  * Provides basic proxies for handlers.
+ *
+ * @final
  */
 class Proxy
 {

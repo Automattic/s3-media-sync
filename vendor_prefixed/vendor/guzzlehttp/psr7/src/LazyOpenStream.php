@@ -30,6 +30,6 @@ class LazyOpenStream implements \WPCOM_VIP\Psr\Http\Message\StreamInterface
      */
     protected function createStream()
     {
-        return stream_for(try_fopen($this->filename, $this->mode));
+        return \WPCOM_VIP\GuzzleHttp\Psr7\Utils::streamFor(\WPCOM_VIP\GuzzleHttp\Psr7\Utils::tryFopen($this->filename, $this->mode));
     }
 }

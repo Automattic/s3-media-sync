@@ -31,8 +31,10 @@ use WPCOM_VIP\Psr\Http\Message\ResponseInterface;
  * - {res_headers}:    Response headers
  * - {req_body}:       Request body
  * - {res_body}:       Response body
+ *
+ * @final
  */
-class MessageFormatter
+class MessageFormatter implements \WPCOM_VIP\GuzzleHttp\MessageFormatterInterface
 {
     /**
      * Apache Common Log Format.
@@ -73,10 +75,10 @@ class MessageFormatter
             $result = '';
             switch ($matches[1]) {
                 case 'request':
-                    $result = \WPCOM_VIP\GuzzleHttp\Psr7\str($request);
+                    $result = \WPCOM_VIP\GuzzleHttp\Psr7\Message::toString($request);
                     break;
                 case 'response':
-                    $result = $response ? \WPCOM_VIP\GuzzleHttp\Psr7\str($response) : '';
+                    $result = $response ? \WPCOM_VIP\GuzzleHttp\Psr7\Message::toString($response) : '';
                     break;
                 case 'req_headers':
                     $result = \trim($request->getMethod() . ' ' . $request->getRequestTarget()) . ' HTTP/' . $request->getProtocolVersion() . "\r\n" . $this->headers($request);
@@ -85,10 +87,19 @@ class MessageFormatter
                     $result = $response ? \sprintf('HTTP/%s %d %s', $response->getProtocolVersion(), $response->getStatusCode(), $response->getReasonPhrase()) . "\r\n" . $this->headers($response) : 'NULL';
                     break;
                 case 'req_body':
-                    $result = $request->getBody();
+                    $result = $request->getBody()->__toString();
                     break;
                 case 'res_body':
-                    $result = $response ? $response->getBody() : 'NULL';
+                    if (!$response instanceof \WPCOM_VIP\Psr\Http\Message\ResponseInterface) {
+                        $result = 'NULL';
+                        break;
+                    }
+                    $body = $response->getBody();
+                    if (!$body->isSeekable()) {
+                        $result = 'RESPONSE_NOT_LOGGEABLE';
+                        break;
+                    }
+                    $result = $response->getBody()->__toString();
                     break;
                 case 'ts':
                 case 'date_iso_8601':

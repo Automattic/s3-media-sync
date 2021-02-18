@@ -4,6 +4,7 @@ namespace WPCOM_VIP\GuzzleHttp\Handler;
 
 use WPCOM_VIP\GuzzleHttp\Exception\ConnectException;
 use WPCOM_VIP\GuzzleHttp\Exception\RequestException;
+use WPCOM_VIP\GuzzleHttp\Promise as P;
 use WPCOM_VIP\GuzzleHttp\Promise\FulfilledPromise;
 use WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface;
 use WPCOM_VIP\GuzzleHttp\Psr7;
@@ -15,6 +16,8 @@ use WPCOM_VIP\Psr\Http\Message\StreamInterface;
 use WPCOM_VIP\Psr\Http\Message\UriInterface;
 /**
  * HTTP handler that uses PHP's HTTP stream wrapper.
+ *
+ * @final
  */
 class StreamHandler
 {
@@ -56,14 +59,14 @@ class StreamHandler
                 $e = \WPCOM_VIP\GuzzleHttp\Exception\RequestException::wrapException($request, $e);
             }
             $this->invokeStats($options, $request, $startTime, null, $e);
-            return \WPCOM_VIP\GuzzleHttp\Promise\rejection_for($e);
+            return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor($e);
         }
     }
     private function invokeStats(array $options, \WPCOM_VIP\Psr\Http\Message\RequestInterface $request, ?float $startTime, \WPCOM_VIP\Psr\Http\Message\ResponseInterface $response = null, \Throwable $error = null) : void
     {
         if (isset($options['on_stats'])) {
             $stats = new \WPCOM_VIP\GuzzleHttp\TransferStats($request, $response, \WPCOM_VIP\GuzzleHttp\Utils::currentTime() - $startTime, $error, []);
-            \call_user_func($options['on_stats'], $stats);
+            $options['on_stats']($stats);
         }
     }
     /**
@@ -79,7 +82,7 @@ class StreamHandler
         $reason = $parts[2] ?? null;
         $headers = \WPCOM_VIP\GuzzleHttp\Utils::headersFromLines($hdrs);
         [$stream, $headers] = $this->checkDecode($options, $headers, $stream);
-        $stream = \WPCOM_VIP\GuzzleHttp\Psr7\stream_for($stream);
+        $stream = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::streamFor($stream);
         $sink = $stream;
         if (\strcasecmp('HEAD', $request->getMethod())) {
             $sink = $this->createSink($stream, $options);
@@ -91,7 +94,7 @@ class StreamHandler
             } catch (\Exception $e) {
                 $msg = 'An error was encountered during the on_headers event';
                 $ex = new \WPCOM_VIP\GuzzleHttp\Exception\RequestException($msg, $request, $response, $e);
-                return \WPCOM_VIP\GuzzleHttp\Promise\rejection_for($ex);
+                return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor($ex);
             }
         }
         // Do not drain when the request is a HEAD request because they have
@@ -108,7 +111,7 @@ class StreamHandler
             return $stream;
         }
         $sink = $options['sink'] ?? \fopen('php://temp', 'r+');
-        return \is_string($sink) ? new \WPCOM_VIP\GuzzleHttp\Psr7\LazyOpenStream($sink, 'w+') : \WPCOM_VIP\GuzzleHttp\Psr7\stream_for($sink);
+        return \is_string($sink) ? new \WPCOM_VIP\GuzzleHttp\Psr7\LazyOpenStream($sink, 'w+') : \WPCOM_VIP\GuzzleHttp\Psr7\Utils::streamFor($sink);
     }
     /**
      * @param resource $stream
@@ -121,7 +124,7 @@ class StreamHandler
             if (isset($normalizedKeys['content-encoding'])) {
                 $encoding = $headers[$normalizedKeys['content-encoding']];
                 if ($encoding[0] === 'gzip' || $encoding[0] === 'deflate') {
-                    $stream = new \WPCOM_VIP\GuzzleHttp\Psr7\InflateStream(\WPCOM_VIP\GuzzleHttp\Psr7\stream_for($stream));
+                    $stream = new \WPCOM_VIP\GuzzleHttp\Psr7\InflateStream(\WPCOM_VIP\GuzzleHttp\Psr7\Utils::streamFor($stream));
                     $headers['x-encoded-content-encoding'] = $headers[$normalizedKeys['content-encoding']];
                     // Remove content-encoding header
                     unset($headers[$normalizedKeys['content-encoding']]);
@@ -154,7 +157,7 @@ class StreamHandler
         // that number of bytes has been read. This can prevent infinitely
         // reading from a stream when dealing with servers that do not honor
         // Connection: Close headers.
-        \WPCOM_VIP\GuzzleHttp\Psr7\copy_to_stream($source, $sink, \strlen($contentLength) > 0 && (int) $contentLength > 0 ? (int) $contentLength : -1);
+        \WPCOM_VIP\GuzzleHttp\Psr7\Utils::copyToStream($source, $sink, \strlen($contentLength) > 0 && (int) $contentLength > 0 ? (int) $contentLength : -1);
         $sink->seek(0);
         $source->close();
         return $sink;
@@ -355,7 +358,7 @@ class StreamHandler
      */
     private function add_progress(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, array &$options, $value, array &$params) : void
     {
-        $this->addNotification($params, static function ($code, $a, $b, $c, $transferred, $total) use($value) {
+        self::addNotification($params, static function ($code, $a, $b, $c, $transferred, $total) use($value) {
             if ($code == \STREAM_NOTIFY_PROGRESS) {
                 $value($total, $transferred, null, null);
             }
@@ -373,9 +376,7 @@ class StreamHandler
         static $args = ['severity', 'message', 'message_code', 'bytes_transferred', 'bytes_max'];
         $value = \WPCOM_VIP\GuzzleHttp\Utils::debugResource($value);
         $ident = $request->getMethod() . ' ' . $request->getUri()->withFragment('');
-        $this->addNotification($params, static function () use($ident, $value, $map, $args) : void {
-            $passed = \func_get_args();
-            $code = \array_shift($passed);
+        self::addNotification($params, static function (int $code, ...$passed) use($ident, $value, $map, $args) : void {
             \fprintf($value, '<%s> [%s] ', $ident, $map[$code]);
             foreach (\array_filter($passed) as $i => $v) {
                 \fwrite($value, $args[$i] . ': "' . $v . '" ');
@@ -383,21 +384,20 @@ class StreamHandler
             \fwrite($value, "\n");
         });
     }
-    private function addNotification(array &$params, callable $notify) : void
+    private static function addNotification(array &$params, callable $notify) : void
     {
         // Wrap the existing function if needed.
         if (!isset($params['notification'])) {
             $params['notification'] = $notify;
         } else {
-            $params['notification'] = $this->callArray([$params['notification'], $notify]);
+            $params['notification'] = self::callArray([$params['notification'], $notify]);
         }
     }
-    private function callArray(array $functions) : callable
+    private static function callArray(array $functions) : callable
     {
-        return static function () use($functions) {
-            $args = \func_get_args();
+        return static function (...$args) use($functions) {
             foreach ($functions as $fn) {
-                \call_user_func_array($fn, $args);
+                $fn(...$args);
             }
         };
     }

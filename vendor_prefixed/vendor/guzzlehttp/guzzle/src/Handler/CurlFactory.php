@@ -4,22 +4,27 @@ namespace WPCOM_VIP\GuzzleHttp\Handler;
 
 use WPCOM_VIP\GuzzleHttp\Exception\ConnectException;
 use WPCOM_VIP\GuzzleHttp\Exception\RequestException;
+use WPCOM_VIP\GuzzleHttp\Promise as P;
 use WPCOM_VIP\GuzzleHttp\Promise\FulfilledPromise;
 use WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface;
-use WPCOM_VIP\GuzzleHttp\Psr7;
 use WPCOM_VIP\GuzzleHttp\Psr7\LazyOpenStream;
 use WPCOM_VIP\GuzzleHttp\TransferStats;
 use WPCOM_VIP\GuzzleHttp\Utils;
 use WPCOM_VIP\Psr\Http\Message\RequestInterface;
 /**
  * Creates curl resources from a request
+ *
+ * @final
  */
 class CurlFactory implements \WPCOM_VIP\GuzzleHttp\Handler\CurlFactoryInterface
 {
     public const CURL_VERSION_STR = 'curl_version';
+    /**
+     * @deprecated
+     */
     public const LOW_CURL_VERSION_NUMBER = '7.21.2';
     /**
-     * @var resource[]
+     * @var resource[]|\CurlHandle[]
      */
     private $handles = [];
     /**
@@ -104,7 +109,7 @@ class CurlFactory implements \WPCOM_VIP\GuzzleHttp\Handler\CurlFactoryInterface
         $curlStats = \curl_getinfo($easy->handle);
         $curlStats['appconnect_time'] = \curl_getinfo($easy->handle, \CURLINFO_APPCONNECT_TIME);
         $stats = new \WPCOM_VIP\GuzzleHttp\TransferStats($easy->request, $easy->response, $curlStats['total_time'], $easy->errno, $curlStats);
-        \call_user_func($easy->options['on_stats'], $stats);
+        $easy->options['on_stats']($stats);
     }
     /**
      * @param callable(RequestInterface, array): PromiseInterface $handler
@@ -124,19 +129,22 @@ class CurlFactory implements \WPCOM_VIP\GuzzleHttp\Handler\CurlFactoryInterface
     private static function createRejection(\WPCOM_VIP\GuzzleHttp\Handler\EasyHandle $easy, array $ctx) : \WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface
     {
         static $connectionErrors = [\CURLE_OPERATION_TIMEOUTED => \true, \CURLE_COULDNT_RESOLVE_HOST => \true, \CURLE_COULDNT_CONNECT => \true, \CURLE_SSL_CONNECT_ERROR => \true, \CURLE_GOT_NOTHING => \true];
+        if ($easy->createResponseException) {
+            return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor(new \WPCOM_VIP\GuzzleHttp\Exception\RequestException('An error was encountered while creating the response', $easy->request, $easy->response, $easy->createResponseException, $ctx));
+        }
         // If an exception was encountered during the onHeaders event, then
         // return a rejected promise that wraps that exception.
         if ($easy->onHeadersException) {
-            return \WPCOM_VIP\GuzzleHttp\Promise\rejection_for(new \WPCOM_VIP\GuzzleHttp\Exception\RequestException('An error was encountered during the on_headers event', $easy->request, $easy->response, $easy->onHeadersException, $ctx));
+            return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor(new \WPCOM_VIP\GuzzleHttp\Exception\RequestException('An error was encountered during the on_headers event', $easy->request, $easy->response, $easy->onHeadersException, $ctx));
         }
-        if (\version_compare($ctx[self::CURL_VERSION_STR], self::LOW_CURL_VERSION_NUMBER)) {
-            $message = \sprintf('cURL error %s: %s (%s)', $ctx['errno'], $ctx['error'], 'see https://curl.haxx.se/libcurl/c/libcurl-errors.html');
-        } else {
-            $message = \sprintf('cURL error %s: %s (%s) for %s', $ctx['errno'], $ctx['error'], 'see https://curl.haxx.se/libcurl/c/libcurl-errors.html', $easy->request->getUri());
+        $message = \sprintf('cURL error %s: %s (%s)', $ctx['errno'], $ctx['error'], 'see https://curl.haxx.se/libcurl/c/libcurl-errors.html');
+        $uriString = (string) $easy->request->getUri();
+        if ($uriString !== '' && \false === \strpos($ctx['error'], $uriString)) {
+            $message .= \sprintf(' for %s', $uriString);
         }
         // Create a connection exception if it was a specific error code.
         $error = isset($connectionErrors[$easy->errno]) ? new \WPCOM_VIP\GuzzleHttp\Exception\ConnectException($message, $easy->request, null, $ctx) : new \WPCOM_VIP\GuzzleHttp\Exception\RequestException($message, $easy->request, $easy->response, null, $ctx);
-        return \WPCOM_VIP\GuzzleHttp\Promise\rejection_for($error);
+        return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor($error);
     }
     /**
      * @return array<int|string, mixed>
@@ -269,7 +277,7 @@ class CurlFactory implements \WPCOM_VIP\GuzzleHttp\Handler\CurlFactoryInterface
                 }
             }
         }
-        if (!empty($options['decode_content'])) {
+        if (!isset($options['curl'][\CURLOPT_ENCODING]) && !empty($options['decode_content'])) {
             $accept = $easy->request->getHeaderLine('Accept-Encoding');
             if ($accept) {
                 $conf[\CURLOPT_ENCODING] = $accept;
@@ -279,25 +287,23 @@ class CurlFactory implements \WPCOM_VIP\GuzzleHttp\Handler\CurlFactoryInterface
                 $conf[\CURLOPT_HTTPHEADER][] = 'Accept-Encoding:';
             }
         }
-        if (isset($options['sink'])) {
-            $sink = $options['sink'];
-            if (!\is_string($sink)) {
-                $sink = \WPCOM_VIP\GuzzleHttp\Psr7\stream_for($sink);
-            } elseif (!\is_dir(\dirname($sink))) {
-                // Ensure that the directory exists before failing in curl.
-                throw new \RuntimeException(\sprintf('Directory %s does not exist for sink value of %s', \dirname($sink), $sink));
-            } else {
-                $sink = new \WPCOM_VIP\GuzzleHttp\Psr7\LazyOpenStream($sink, 'w+');
-            }
-            $easy->sink = $sink;
-            $conf[\CURLOPT_WRITEFUNCTION] = static function ($ch, $write) use($sink) : int {
-                return $sink->write($write);
-            };
-        } else {
+        if (!isset($options['sink'])) {
             // Use a default temp stream if no sink was set.
-            $conf[\CURLOPT_FILE] = \fopen('php://temp', 'w+');
-            $easy->sink = \WPCOM_VIP\GuzzleHttp\Psr7\stream_for($conf[\CURLOPT_FILE]);
+            $options['sink'] = \fopen('php://temp', 'w+');
         }
+        $sink = $options['sink'];
+        if (!\is_string($sink)) {
+            $sink = \WPCOM_VIP\GuzzleHttp\Psr7\stream_for($sink);
+        } elseif (!\is_dir(\dirname($sink))) {
+            // Ensure that the directory exists before failing in curl.
+            throw new \RuntimeException(\sprintf('Directory %s does not exist for sink value of %s', \dirname($sink), $sink));
+        } else {
+            $sink = new \WPCOM_VIP\GuzzleHttp\Psr7\LazyOpenStream($sink, 'w+');
+        }
+        $easy->sink = $sink;
+        $conf[\CURLOPT_WRITEFUNCTION] = static function ($ch, $write) use($sink) : int {
+            return $sink->write($write);
+        };
         $timeoutRequiresNoSignal = \false;
         if (isset($options['timeout'])) {
             $timeoutRequiresNoSignal |= $options['timeout'] < 1;
@@ -362,13 +368,8 @@ class CurlFactory implements \WPCOM_VIP\GuzzleHttp\Handler\CurlFactoryInterface
                 throw new \InvalidArgumentException('progress client option must be callable');
             }
             $conf[\CURLOPT_NOPROGRESS] = \false;
-            $conf[\CURLOPT_PROGRESSFUNCTION] = static function () use($progress) {
-                $args = \func_get_args();
-                // PHP 5.5 pushed the handle onto the start of the args
-                if (\is_resource($args[0])) {
-                    \array_shift($args);
-                }
-                \call_user_func_array($progress, $args);
+            $conf[\CURLOPT_PROGRESSFUNCTION] = static function ($resource, int $downloadSize, int $downloaded, int $uploadSize, int $uploaded) use($progress) {
+                $progress($downloadSize, $downloaded, $uploadSize, $uploaded);
             };
         }
         if (!empty($options['debug'])) {
@@ -424,7 +425,12 @@ class CurlFactory implements \WPCOM_VIP\GuzzleHttp\Handler\CurlFactoryInterface
             $value = \trim($h);
             if ($value === '') {
                 $startingResponse = \true;
-                $easy->createResponse();
+                try {
+                    $easy->createResponse();
+                } catch (\Exception $e) {
+                    $easy->createResponseException = $e;
+                    return -1;
+                }
                 if ($onHeaders !== null) {
                     try {
                         $onHeaders($easy->response);

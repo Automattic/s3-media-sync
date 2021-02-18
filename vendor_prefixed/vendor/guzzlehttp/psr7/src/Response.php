@@ -30,7 +30,7 @@ class Response implements \WPCOM_VIP\Psr\Http\Message\ResponseInterface
         $this->assertStatusCodeRange($status);
         $this->statusCode = $status;
         if ($body !== '' && $body !== null) {
-            $this->stream = stream_for($body);
+            $this->stream = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::streamFor($body);
         }
         $this->setHeaders($headers);
         if ($reason == '' && isset(self::$phrases[$this->statusCode])) {
@@ -58,7 +58,7 @@ class Response implements \WPCOM_VIP\Psr\Http\Message\ResponseInterface
         if ($reasonPhrase == '' && isset(self::$phrases[$new->statusCode])) {
             $reasonPhrase = self::$phrases[$new->statusCode];
         }
-        $new->reasonPhrase = $reasonPhrase;
+        $new->reasonPhrase = (string) $reasonPhrase;
         return $new;
     }
     private function assertStatusCodeIsInteger($statusCode)

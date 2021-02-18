@@ -5,10 +5,14 @@ namespace WPCOM_VIP\GuzzleHttp;
 use WPCOM_VIP\GuzzleHttp\Cookie\CookieJar;
 use WPCOM_VIP\GuzzleHttp\Exception\GuzzleException;
 use WPCOM_VIP\GuzzleHttp\Exception\InvalidArgumentException;
+use WPCOM_VIP\GuzzleHttp\Promise as P;
 use WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface;
 use WPCOM_VIP\Psr\Http\Message\RequestInterface;
 use WPCOM_VIP\Psr\Http\Message\ResponseInterface;
 use WPCOM_VIP\Psr\Http\Message\UriInterface;
+/**
+ * @final
+ */
 class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Http\Client\ClientInterface
 {
     use ClientTrait;
@@ -56,7 +60,7 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
         }
         // Convert the base_uri to a UriInterface
         if (isset($config['base_uri'])) {
-            $config['base_uri'] = \WPCOM_VIP\GuzzleHttp\Psr7\uri_for($config['base_uri']);
+            $config['base_uri'] = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::uriFor($config['base_uri']);
         }
         $this->configureDefaults($config);
     }
@@ -65,6 +69,8 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
      * @param array  $args
      *
      * @return PromiseInterface|ResponseInterface
+     *
+     * @deprecated Client::__call will be removed in guzzlehttp/guzzle:8.0.
      */
     public function __call($method, $args)
     {
@@ -132,7 +138,7 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
         $body = $options['body'] ?? null;
         $version = $options['version'] ?? '1.1';
         // Merge the URI into the base URI.
-        $uri = $this->buildUri(\WPCOM_VIP\GuzzleHttp\Psr7\uri_for($uri), $options);
+        $uri = $this->buildUri(\WPCOM_VIP\GuzzleHttp\Psr7\Utils::uriFor($uri), $options);
         if (\is_array($body)) {
             throw $this->invalidBody();
         }
@@ -169,6 +175,8 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
      * @param string|null $option The config option to retrieve.
      *
      * @return mixed
+     *
+     * @deprecated Client::getConfig will be removed in guzzlehttp/guzzle:8.0.
      */
     public function getConfig(?string $option = null)
     {
@@ -177,7 +185,7 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
     private function buildUri(\WPCOM_VIP\Psr\Http\Message\UriInterface $uri, array $config) : \WPCOM_VIP\Psr\Http\Message\UriInterface
     {
         if (isset($config['base_uri'])) {
-            $uri = \WPCOM_VIP\GuzzleHttp\Psr7\UriResolver::resolve(\WPCOM_VIP\GuzzleHttp\Psr7\uri_for($config['base_uri']), $uri);
+            $uri = \WPCOM_VIP\GuzzleHttp\Psr7\UriResolver::resolve(\WPCOM_VIP\GuzzleHttp\Psr7\Utils::uriFor($config['base_uri']), $uri);
         }
         if (isset($config['idn_conversion']) && $config['idn_conversion'] !== \false) {
             $idnOptions = $config['idn_conversion'] === \true ? \IDNA_DEFAULT : $config['idn_conversion'];
@@ -270,9 +278,9 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
         /** @var HandlerStack $handler */
         $handler = $options['handler'];
         try {
-            return \WPCOM_VIP\GuzzleHttp\Promise\promise_for($handler($request, $options));
+            return \WPCOM_VIP\GuzzleHttp\Promise\Create::promiseFor($handler($request, $options));
         } catch (\Exception $e) {
-            return \WPCOM_VIP\GuzzleHttp\Promise\rejection_for($e);
+            return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor($e);
         }
     }
     /**
@@ -292,7 +300,7 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
             $options['body'] = \http_build_query($options['form_params'], '', '&');
             unset($options['form_params']);
             // Ensure that we don't have the header in different case and set the new value.
-            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\_caseless_remove(['Content-Type'], $options['_conditional']);
+            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::caselessRemove(['Content-Type'], $options['_conditional']);
             $options['_conditional']['Content-Type'] = 'application/x-www-form-urlencoded';
         }
         if (isset($options['multipart'])) {
@@ -303,19 +311,19 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
             $options['body'] = \WPCOM_VIP\GuzzleHttp\Utils::jsonEncode($options['json']);
             unset($options['json']);
             // Ensure that we don't have the header in different case and set the new value.
-            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\_caseless_remove(['Content-Type'], $options['_conditional']);
+            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::caselessRemove(['Content-Type'], $options['_conditional']);
             $options['_conditional']['Content-Type'] = 'application/json';
         }
         if (!empty($options['decode_content']) && $options['decode_content'] !== \true) {
             // Ensure that we don't have the header in different case and set the new value.
-            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\_caseless_remove(['Accept-Encoding'], $options['_conditional']);
+            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::caselessRemove(['Accept-Encoding'], $options['_conditional']);
             $modify['set_headers']['Accept-Encoding'] = $options['decode_content'];
         }
         if (isset($options['body'])) {
             if (\is_array($options['body'])) {
                 throw $this->invalidBody();
             }
-            $modify['body'] = \WPCOM_VIP\GuzzleHttp\Psr7\stream_for($options['body']);
+            $modify['body'] = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::streamFor($options['body']);
             unset($options['body']);
         }
         if (!empty($options['auth']) && \is_array($options['auth'])) {
@@ -324,7 +332,7 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
             switch ($type) {
                 case 'basic':
                     // Ensure that we don't have the header in different case and set the new value.
-                    $modify['set_headers'] = \WPCOM_VIP\GuzzleHttp\Psr7\_caseless_remove(['Authorization'], $modify['set_headers']);
+                    $modify['set_headers'] = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::caselessRemove(['Authorization'], $modify['set_headers']);
                     $modify['set_headers']['Authorization'] = 'Basic ' . \base64_encode("{$value[0]}:{$value[1]}");
                     break;
                 case 'digest':
@@ -341,7 +349,7 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
         if (isset($options['query'])) {
             $value = $options['query'];
             if (\is_array($value)) {
-                $value = \http_build_query($value, null, '&', \PHP_QUERY_RFC3986);
+                $value = \http_build_query($value, '', '&', \PHP_QUERY_RFC3986);
             }
             if (!\is_string($value)) {
                 throw new \WPCOM_VIP\GuzzleHttp\Exception\InvalidArgumentException('query must be a string or array');
@@ -356,11 +364,11 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
                 throw new \WPCOM_VIP\GuzzleHttp\Exception\InvalidArgumentException('sink must not be a boolean');
             }
         }
-        $request = \WPCOM_VIP\GuzzleHttp\Psr7\modify_request($request, $modify);
+        $request = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::modifyRequest($request, $modify);
         if ($request->getBody() instanceof \WPCOM_VIP\GuzzleHttp\Psr7\MultipartStream) {
             // Use a multipart/form-data POST if a Content-Type is not set.
             // Ensure that we don't have the header in different case and set the new value.
-            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\_caseless_remove(['Content-Type'], $options['_conditional']);
+            $options['_conditional'] = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::caselessRemove(['Content-Type'], $options['_conditional']);
             $options['_conditional']['Content-Type'] = 'multipart/form-data; boundary=' . $request->getBody()->getBoundary();
         }
         // Merge in conditional headers if they are not present.
@@ -372,7 +380,7 @@ class Client implements \WPCOM_VIP\GuzzleHttp\ClientInterface, \WPCOM_VIP\Psr\Ht
                     $modify['set_headers'][$k] = $v;
                 }
             }
-            $request = \WPCOM_VIP\GuzzleHttp\Psr7\modify_request($request, $modify);
+            $request = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::modifyRequest($request, $modify);
             // Don't pass this internal value along to middleware/handlers.
             unset($options['_conditional']);
         }

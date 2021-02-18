@@ -92,7 +92,7 @@ final class Utils
         if (\ini_get('allow_url_fopen')) {
             $handler = $handler ? \WPCOM_VIP\GuzzleHttp\Handler\Proxy::wrapStreaming($handler, new \WPCOM_VIP\GuzzleHttp\Handler\StreamHandler()) : new \WPCOM_VIP\GuzzleHttp\Handler\StreamHandler();
         } elseif (!$handler) {
-            throw new \RuntimeException('GuzzleHttp requires cURL, the ' . 'allow_url_fopen ini setting, or a custom HTTP handler.');
+            throw new \RuntimeException('GuzzleHttp requires cURL, the allow_url_fopen ini setting, or a custom HTTP handler.');
         }
         return $handler;
     }
@@ -115,6 +115,8 @@ final class Utils
      * Note: the result of this function is cached for subsequent calls.
      *
      * @throws \RuntimeException if no bundle can be found.
+     *
+     * @deprecated Utils::defaultCaBundle will be removed in guzzlehttp/guzzle:8.0. This method is not needed in PHP 5.6+.
      */
     public static function defaultCaBundle() : string
     {

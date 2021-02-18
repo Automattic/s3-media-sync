@@ -2,12 +2,15 @@
 
 namespace WPCOM_VIP\GuzzleHttp;
 
+use WPCOM_VIP\GuzzleHttp\Promise as P;
 use WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface;
 use WPCOM_VIP\Psr\Http\Message\RequestInterface;
 use WPCOM_VIP\Psr\Http\Message\ResponseInterface;
 /**
  * Middleware that retries requests based on the boolean result of
  * invoking the provided "decider" function.
+ *
+ * @final
  */
 class RetryMiddleware
 {
@@ -62,7 +65,7 @@ class RetryMiddleware
     private function onFulfilled(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, array $options) : callable
     {
         return function ($value) use($request, $options) {
-            if (!\call_user_func($this->decider, $options['retries'], $request, $value, null)) {
+            if (!($this->decider)($options['retries'], $request, $value, null)) {
                 return $value;
             }
             return $this->doRetry($request, $options, $value);
@@ -74,15 +77,15 @@ class RetryMiddleware
     private function onRejected(\WPCOM_VIP\Psr\Http\Message\RequestInterface $req, array $options) : callable
     {
         return function ($reason) use($req, $options) {
-            if (!\call_user_func($this->decider, $options['retries'], $req, null, $reason)) {
-                return \WPCOM_VIP\GuzzleHttp\Promise\rejection_for($reason);
+            if (!($this->decider)($options['retries'], $req, null, $reason)) {
+                return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor($reason);
             }
             return $this->doRetry($req, $options);
         };
     }
     private function doRetry(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, array $options, \WPCOM_VIP\Psr\Http\Message\ResponseInterface $response = null) : \WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface
     {
-        $options['delay'] = \call_user_func($this->delay, ++$options['retries'], $response);
+        $options['delay'] = ($this->delay)(++$options['retries'], $response);
         return $this($request, $options);
     }
 }

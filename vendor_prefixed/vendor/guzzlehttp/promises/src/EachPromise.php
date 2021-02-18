@@ -9,17 +9,18 @@ namespace WPCOM_VIP\GuzzleHttp\Promise;
 class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
 {
     private $pending = [];
-    /** @var \Iterator */
+    private $nextPendingIndex = 0;
+    /** @var \Iterator|null */
     private $iterable;
-    /** @var callable|int */
+    /** @var callable|int|null */
     private $concurrency;
-    /** @var callable */
+    /** @var callable|null */
     private $onFulfilled;
-    /** @var callable */
+    /** @var callable|null */
     private $onRejected;
-    /** @var Promise */
+    /** @var Promise|null */
     private $aggregate;
-    /** @var bool */
+    /** @var bool|null */
     private $mutex;
     /**
      * Configuration hash can include the following key value pairs:
@@ -39,12 +40,12 @@ class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
      *   allowed number of outstanding concurrently executing promises,
      *   creating a capped pool of promises. There is no limit by default.
      *
-     * @param mixed    $iterable Promises or values to iterate.
-     * @param array    $config   Configuration options
+     * @param mixed $iterable Promises or values to iterate.
+     * @param array $config   Configuration options
      */
     public function __construct($iterable, array $config = [])
     {
-        $this->iterable = iter_for($iterable);
+        $this->iterable = \WPCOM_VIP\GuzzleHttp\Promise\Create::iterFor($iterable);
         if (isset($config['concurrency'])) {
             $this->concurrency = $config['concurrency'];
         }
@@ -55,6 +56,7 @@ class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
             $this->onRejected = $config['rejected'];
         }
     }
+    /** @psalm-suppress InvalidNullableReturnType */
     public function promise()
     {
         if ($this->aggregate) {
@@ -62,13 +64,28 @@ class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
         }
         try {
             $this->createPromise();
+            /** @psalm-assert Promise $this->aggregate */
             $this->iterable->rewind();
-            $this->refillPending();
+            if (!$this->checkIfFinished()) {
+                $this->refillPending();
+            }
         } catch (\Throwable $e) {
+            /**
+             * @psalm-suppress NullReference
+             * @phpstan-ignore-next-line
+             */
             $this->aggregate->reject($e);
         } catch (\Exception $e) {
+            /**
+             * @psalm-suppress NullReference
+             * @phpstan-ignore-next-line
+             */
             $this->aggregate->reject($e);
         }
+        /**
+         * @psalm-suppress NullableReturnStatement
+         * @phpstan-ignore-next-line
+         */
         return $this->aggregate;
     }
     private function createPromise()
@@ -76,16 +93,12 @@ class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
         $this->mutex = \false;
         $this->aggregate = new \WPCOM_VIP\GuzzleHttp\Promise\Promise(function () {
             \reset($this->pending);
-            if (empty($this->pending) && !$this->iterable->valid()) {
-                $this->aggregate->resolve(null);
-                return;
-            }
             // Consume a potentially fluctuating list of promises while
             // ensuring that indexes are maintained (precluding array_shift).
             while ($promise = \current($this->pending)) {
                 \next($this->pending);
                 $promise->wait();
-                if ($this->aggregate->getState() !== \WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface::PENDING) {
+                if (\WPCOM_VIP\GuzzleHttp\Promise\Is::settled($this->aggregate)) {
                     return;
                 }
             }
@@ -94,6 +107,7 @@ class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
         $clearFn = function () {
             $this->iterable = $this->concurrency = $this->pending = null;
             $this->onFulfilled = $this->onRejected = null;
+            $this->nextPendingIndex = 0;
         };
         $this->aggregate->then($clearFn, $clearFn);
     }
@@ -126,16 +140,19 @@ class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
         if (!$this->iterable || !$this->iterable->valid()) {
             return \false;
         }
-        $promise = promise_for($this->iterable->current());
-        $idx = $this->iterable->key();
-        $this->pending[$idx] = $promise->then(function ($value) use($idx) {
+        $promise = \WPCOM_VIP\GuzzleHttp\Promise\Create::promiseFor($this->iterable->current());
+        $key = $this->iterable->key();
+        // Iterable keys may not be unique, so we use a counter to
+        // guarantee uniqueness
+        $idx = $this->nextPendingIndex++;
+        $this->pending[$idx] = $promise->then(function ($value) use($idx, $key) {
             if ($this->onFulfilled) {
-                \call_user_func($this->onFulfilled, $value, $idx, $this->aggregate);
+                \call_user_func($this->onFulfilled, $value, $key, $this->aggregate);
             }
             $this->step($idx);
-        }, function ($reason) use($idx) {
+        }, function ($reason) use($idx, $key) {
             if ($this->onRejected) {
-                \call_user_func($this->onRejected, $reason, $idx, $this->aggregate);
+                \call_user_func($this->onRejected, $reason, $key, $this->aggregate);
             }
             $this->step($idx);
         });
@@ -166,7 +183,7 @@ class EachPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
     private function step($idx)
     {
         // If the promise was already resolved, then ignore this step.
-        if ($this->aggregate->getState() !== \WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface::PENDING) {
+        if (\WPCOM_VIP\GuzzleHttp\Promise\Is::settled($this->aggregate)) {
             return;
         }
         unset($this->pending[$idx]);

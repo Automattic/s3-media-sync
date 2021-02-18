@@ -13,6 +13,8 @@ use WPCOM_VIP\Psr\Http\Message\UriInterface;
  *
  * Apply this middleware like other middleware using
  * {@see \GuzzleHttp\Middleware::redirect()}.
+ *
+ * @final
  */
 class RedirectMiddleware
 {
@@ -62,10 +64,10 @@ class RedirectMiddleware
         if (\strpos((string) $response->getStatusCode(), '3') !== 0 || !$response->hasHeader('Location')) {
             return $response;
         }
-        $this->guardMax($request, $options);
+        $this->guardMax($request, $response, $options);
         $nextRequest = $this->modifyRequest($request, $options, $response);
         if (isset($options['allow_redirects']['on_redirect'])) {
-            \call_user_func($options['allow_redirects']['on_redirect'], $request, $response, $nextRequest->getUri());
+            $options['allow_redirects']['on_redirect']($request, $response, $nextRequest->getUri());
         }
         $promise = $this($nextRequest, $options);
         // Add headers to be able to track history of redirects.
@@ -95,13 +97,13 @@ class RedirectMiddleware
      *
      * @throws TooManyRedirectsException Too many redirects.
      */
-    private function guardMax(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, array &$options) : void
+    private function guardMax(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, \WPCOM_VIP\Psr\Http\Message\ResponseInterface $response, array &$options) : void
     {
         $current = $options['__redirect_count'] ?? 0;
         $options['__redirect_count'] = $current + 1;
         $max = $options['allow_redirects']['max'];
         if ($options['__redirect_count'] > $max) {
-            throw new \WPCOM_VIP\GuzzleHttp\Exception\TooManyRedirectsException("Will not follow more than {$max} redirects", $request);
+            throw new \WPCOM_VIP\GuzzleHttp\Exception\TooManyRedirectsException("Will not follow more than {$max} redirects", $request, $response);
         }
     }
     public function modifyRequest(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, array $options, \WPCOM_VIP\Psr\Http\Message\ResponseInterface $response) : \WPCOM_VIP\Psr\Http\Message\RequestInterface
@@ -114,7 +116,9 @@ class RedirectMiddleware
         // would do.
         $statusCode = $response->getStatusCode();
         if ($statusCode == 303 || $statusCode <= 302 && !$options['allow_redirects']['strict']) {
-            $modify['method'] = 'GET';
+            $safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+            $requestMethod = $request->getMethod();
+            $modify['method'] = \in_array($requestMethod, $safeMethods) ? $requestMethod : 'GET';
             $modify['body'] = '';
         }
         $uri = $this->redirectUri($request, $response, $protocols);
@@ -123,7 +127,7 @@ class RedirectMiddleware
             $uri = \WPCOM_VIP\GuzzleHttp\Utils::idnUriConvert($uri, $idnOptions);
         }
         $modify['uri'] = $uri;
-        \WPCOM_VIP\GuzzleHttp\Psr7\rewind_body($request);
+        \WPCOM_VIP\GuzzleHttp\Psr7\Message::rewindBody($request);
         // Add the Referer header if it is told to do so and only
         // add the header if we are not redirecting from https to http.
         if ($options['allow_redirects']['referer'] && $modify['uri']->getScheme() === $request->getUri()->getScheme()) {
@@ -136,7 +140,7 @@ class RedirectMiddleware
         if ($request->getUri()->getHost() !== $modify['uri']->getHost()) {
             $modify['remove_headers'][] = 'Authorization';
         }
-        return \WPCOM_VIP\GuzzleHttp\Psr7\modify_request($request, $modify);
+        return \WPCOM_VIP\GuzzleHttp\Psr7\Utils::modifyRequest($request, $modify);
     }
     /**
      * Set the appropriate URL on the request based on the location header

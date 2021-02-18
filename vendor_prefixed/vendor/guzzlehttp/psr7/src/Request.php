@@ -39,7 +39,7 @@ class Request implements \WPCOM_VIP\Psr\Http\Message\RequestInterface
             $this->updateHostFromUri();
         }
         if ($body !== '' && $body !== null) {
-            $this->stream = stream_for($body);
+            $this->stream = \WPCOM_VIP\GuzzleHttp\Psr7\Utils::streamFor($body);
         }
     }
     public function getRequestTarget()

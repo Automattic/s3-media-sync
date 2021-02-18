@@ -13,7 +13,7 @@ class FulfilledPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface
     private $value;
     public function __construct($value)
     {
-        if (\method_exists($value, 'then')) {
+        if (\is_object($value) && \method_exists($value, 'then')) {
             throw new \InvalidArgumentException('You cannot create a FulfilledPromise with a promise.');
         }
         $this->value = $value;
@@ -24,11 +24,11 @@ class FulfilledPromise implements \WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface
         if (!$onFulfilled) {
             return $this;
         }
-        $queue = queue();
+        $queue = \WPCOM_VIP\GuzzleHttp\Promise\Utils::queue();
         $p = new \WPCOM_VIP\GuzzleHttp\Promise\Promise([$queue, 'run']);
         $value = $this->value;
         $queue->add(static function () use($p, $value, $onFulfilled) {
-            if ($p->getState() === self::PENDING) {
+            if (\WPCOM_VIP\GuzzleHttp\Promise\Is::pending($p)) {
                 try {
                     $p->resolve($onFulfilled($value));
                 } catch (\Throwable $e) {

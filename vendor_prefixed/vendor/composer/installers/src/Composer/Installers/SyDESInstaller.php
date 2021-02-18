@@ -10,9 +10,7 @@ class SyDESInstaller extends \WPCOM_VIP\Composer\Installers\BaseInstaller
      *
      * Strip `sydes-` prefix and a trailing '-theme' or '-module' from package name if present.
      *
-     * @param array @vars
-     *
-     * @return array
+     * {@inerhitDoc}
      */
     public function inflectPackageVars($vars)
     {

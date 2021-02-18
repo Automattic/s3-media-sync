@@ -4,6 +4,7 @@ namespace WPCOM_VIP\GuzzleHttp\Handler;
 
 use WPCOM_VIP\GuzzleHttp\Exception\RequestException;
 use WPCOM_VIP\GuzzleHttp\HandlerStack;
+use WPCOM_VIP\GuzzleHttp\Promise as P;
 use WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface;
 use WPCOM_VIP\GuzzleHttp\TransferStats;
 use WPCOM_VIP\GuzzleHttp\Utils;
@@ -12,6 +13,8 @@ use WPCOM_VIP\Psr\Http\Message\ResponseInterface;
 use WPCOM_VIP\Psr\Http\Message\StreamInterface;
 /**
  * Handler that returns responses or throw exceptions from a queue.
+ *
+ * @final
  */
 class MockHandler implements \Countable
 {
@@ -61,7 +64,8 @@ class MockHandler implements \Countable
         $this->onFulfilled = $onFulfilled;
         $this->onRejected = $onRejected;
         if ($queue) {
-            \call_user_func_array([$this, 'append'], $queue);
+            // array_values included for BC
+            $this->append(...\array_values($queue));
         }
     }
     public function __invoke(\WPCOM_VIP\Psr\Http\Message\RequestInterface $request, array $options) : \WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface
@@ -70,7 +74,7 @@ class MockHandler implements \Countable
             throw new \OutOfBoundsException('Mock queue is empty');
         }
         if (isset($options['delay']) && \is_numeric($options['delay'])) {
-            \usleep($options['delay'] * 1000);
+            \usleep((int) $options['delay'] * 1000);
         }
         $this->lastRequest = $request;
         $this->lastOptions = $options;
@@ -87,13 +91,13 @@ class MockHandler implements \Countable
             }
         }
         if (\is_callable($response)) {
-            $response = \call_user_func($response, $request, $options);
+            $response = $response($request, $options);
         }
-        $response = $response instanceof \Throwable ? \WPCOM_VIP\GuzzleHttp\Promise\rejection_for($response) : \WPCOM_VIP\GuzzleHttp\Promise\promise_for($response);
+        $response = $response instanceof \Throwable ? \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor($response) : \WPCOM_VIP\GuzzleHttp\Promise\Create::promiseFor($response);
         return $response->then(function (?\WPCOM_VIP\Psr\Http\Message\ResponseInterface $value) use($request, $options) {
             $this->invokeStats($request, $options, $value);
             if ($this->onFulfilled) {
-                \call_user_func($this->onFulfilled, $value);
+                ($this->onFulfilled)($value);
             }
             if ($value !== null && isset($options['sink'])) {
                 $contents = (string) $value->getBody();
@@ -110,9 +114,9 @@ class MockHandler implements \Countable
         }, function ($reason) use($request, $options) {
             $this->invokeStats($request, $options, null, $reason);
             if ($this->onRejected) {
-                \call_user_func($this->onRejected, $reason);
+                ($this->onRejected)($reason);
             }
-            return \WPCOM_VIP\GuzzleHttp\Promise\rejection_for($reason);
+            return \WPCOM_VIP\GuzzleHttp\Promise\Create::rejectionFor($reason);
         });
     }
     /**
@@ -164,7 +168,7 @@ class MockHandler implements \Countable
         if (isset($options['on_stats'])) {
             $transferTime = $options['transfer_time'] ?? 0;
             $stats = new \WPCOM_VIP\GuzzleHttp\TransferStats($request, $response, $transferTime, $reason);
-            \call_user_func($options['on_stats'], $stats);
+            $options['on_stats']($stats);
         }
     }
 }

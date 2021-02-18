@@ -10,9 +10,7 @@ class CockpitInstaller extends \WPCOM_VIP\Composer\Installers\BaseInstaller
      *
      * Strip `module-` prefix from package name.
      *
-     * @param array @vars
-     *
-     * @return array
+     * {@inheritDoc}
      */
     public function inflectPackageVars($vars)
     {

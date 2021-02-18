@@ -54,7 +54,7 @@ class AppendStream implements \WPCOM_VIP\Psr\Http\Message\StreamInterface
     }
     public function getContents()
     {
-        return copy_to_string($this);
+        return \WPCOM_VIP\GuzzleHttp\Psr7\Utils::copyToString($this);
     }
     /**
      * Closes each attached stream.
@@ -85,6 +85,7 @@ class AppendStream implements \WPCOM_VIP\Psr\Http\Message\StreamInterface
             $stream->detach();
         }
         $this->streams = [];
+        return null;
     }
     public function tell()
     {

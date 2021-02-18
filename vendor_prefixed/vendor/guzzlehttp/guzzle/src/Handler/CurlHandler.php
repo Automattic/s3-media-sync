@@ -10,6 +10,8 @@ use WPCOM_VIP\Psr\Http\Message\RequestInterface;
  * When using the CurlHandler, custom curl options can be specified as an
  * associative array of curl option constants mapping to values in the
  * **curl** key of the "client" key of the request.
+ *
+ * @final
  */
 class CurlHandler
 {

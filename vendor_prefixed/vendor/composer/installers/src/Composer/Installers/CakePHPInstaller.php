@@ -3,6 +3,7 @@
 namespace WPCOM_VIP\Composer\Installers;
 
 use WPCOM_VIP\Composer\DependencyResolver\Pool;
+use WPCOM_VIP\Composer\Semver\Constraint\Constraint;
 class CakePHPInstaller extends \WPCOM_VIP\Composer\Installers\BaseInstaller
 {
     protected $locations = array('plugin' => 'Plugin/{$name}/');
@@ -42,13 +43,6 @@ class CakePHPInstaller extends \WPCOM_VIP\Composer\Installers\BaseInstaller
      */
     protected function matchesCakeVersion($matcher, $version)
     {
-        if (\class_exists('WPCOM_VIP\\Composer\\Semver\\Constraint\\MultiConstraint')) {
-            $multiClass = 'WPCOM_VIP\\Composer\\Semver\\Constraint\\MultiConstraint';
-            $constraintClass = 'WPCOM_VIP\\Composer\\Semver\\Constraint\\Constraint';
-        } else {
-            $multiClass = 'WPCOM_VIP\\Composer\\Package\\LinkConstraint\\MultiConstraint';
-            $constraintClass = 'WPCOM_VIP\\Composer\\Package\\LinkConstraint\\VersionConstraint';
-        }
         $repositoryManager = $this->composer->getRepositoryManager();
         if (!$repositoryManager) {
             return \false;
@@ -57,6 +51,6 @@ class CakePHPInstaller extends \WPCOM_VIP\Composer\Installers\BaseInstaller
         if (!$repos) {
             return \false;
         }
-        return $repos->findPackage('cakephp/cakephp', new $constraintClass($matcher, $version)) !== null;
+        return $repos->findPackage('cakephp/cakephp', new \WPCOM_VIP\Composer\Semver\Constraint\Constraint($matcher, $version)) !== null;
     }
 }

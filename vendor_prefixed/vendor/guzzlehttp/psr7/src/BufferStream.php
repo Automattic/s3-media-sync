@@ -43,6 +43,7 @@ class BufferStream implements \WPCOM_VIP\Psr\Http\Message\StreamInterface
     public function detach()
     {
         $this->close();
+        return null;
     }
     public function getSize()
     {

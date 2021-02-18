@@ -16,7 +16,7 @@ class SetCookie
      */
     private $data;
     /**
-     * Create a new SetCookie object from a string
+     * Create a new SetCookie object from a string.
      *
      * @param string $cookie Set-Cookie header string
      */
@@ -27,7 +27,7 @@ class SetCookie
         // Explode the cookie string using a series of semicolons
         $pieces = \array_filter(\array_map('trim', \explode(';', $cookie)));
         // The name of the cookie (first kvp) must exist and include an equal sign.
-        if (empty($pieces[0]) || !\strpos($pieces[0], '=')) {
+        if (!isset($pieces[0]) || \strpos($pieces[0], '=') === \false) {
             return new self($data);
         }
         // Add the cookie pieces into the parsed data array
@@ -36,7 +36,7 @@ class SetCookie
             $key = \trim($cookieParts[0]);
             $value = isset($cookieParts[1]) ? \trim($cookieParts[1], " \n\r\t\0\v") : \true;
             // Only check for non-cookies when cookies have been found
-            if (empty($data['Name'])) {
+            if (!isset($data['Name'])) {
                 $data['Name'] = $key;
                 $data['Value'] = $value;
             } else {
@@ -89,7 +89,7 @@ class SetCookie
         return $this->data;
     }
     /**
-     * Get the cookie name
+     * Get the cookie name.
      *
      * @return string
      */
@@ -98,7 +98,7 @@ class SetCookie
         return $this->data['Name'];
     }
     /**
-     * Set the cookie name
+     * Set the cookie name.
      *
      * @param string $name Cookie name
      */
@@ -107,7 +107,7 @@ class SetCookie
         $this->data['Name'] = $name;
     }
     /**
-     * Get the cookie value
+     * Get the cookie value.
      *
      * @return string|null
      */
@@ -116,7 +116,7 @@ class SetCookie
         return $this->data['Value'];
     }
     /**
-     * Set the cookie value
+     * Set the cookie value.
      *
      * @param string $value Cookie value
      */
@@ -125,7 +125,7 @@ class SetCookie
         $this->data['Value'] = $value;
     }
     /**
-     * Get the domain
+     * Get the domain.
      *
      * @return string|null
      */
@@ -134,7 +134,7 @@ class SetCookie
         return $this->data['Domain'];
     }
     /**
-     * Set the domain of the cookie
+     * Set the domain of the cookie.
      *
      * @param string $domain
      */
@@ -143,7 +143,7 @@ class SetCookie
         $this->data['Domain'] = $domain;
     }
     /**
-     * Get the path
+     * Get the path.
      *
      * @return string
      */
@@ -152,7 +152,7 @@ class SetCookie
         return $this->data['Path'];
     }
     /**
-     * Set the path of the cookie
+     * Set the path of the cookie.
      *
      * @param string $path Path of the cookie
      */
@@ -161,7 +161,7 @@ class SetCookie
         $this->data['Path'] = $path;
     }
     /**
-     * Maximum lifetime of the cookie in seconds
+     * Maximum lifetime of the cookie in seconds.
      *
      * @return int|null
      */
@@ -170,7 +170,7 @@ class SetCookie
         return $this->data['Max-Age'];
     }
     /**
-     * Set the max-age of the cookie
+     * Set the max-age of the cookie.
      *
      * @param int $maxAge Max age of the cookie in seconds
      */
@@ -179,7 +179,7 @@ class SetCookie
         $this->data['Max-Age'] = $maxAge;
     }
     /**
-     * The UNIX timestamp when the cookie Expires
+     * The UNIX timestamp when the cookie Expires.
      *
      * @return string|int|null
      */
@@ -188,7 +188,7 @@ class SetCookie
         return $this->data['Expires'];
     }
     /**
-     * Set the unix timestamp for which the cookie will expire
+     * Set the unix timestamp for which the cookie will expire.
      *
      * @param int|string $timestamp Unix timestamp or any English textual datetime description.
      */
@@ -197,7 +197,7 @@ class SetCookie
         $this->data['Expires'] = \is_numeric($timestamp) ? (int) $timestamp : \strtotime($timestamp);
     }
     /**
-     * Get whether or not this is a secure cookie
+     * Get whether or not this is a secure cookie.
      *
      * @return bool|null
      */
@@ -206,7 +206,7 @@ class SetCookie
         return $this->data['Secure'];
     }
     /**
-     * Set whether or not the cookie is secure
+     * Set whether or not the cookie is secure.
      *
      * @param bool $secure Set to true or false if secure
      */
@@ -215,7 +215,7 @@ class SetCookie
         $this->data['Secure'] = $secure;
     }
     /**
-     * Get whether or not this is a session cookie
+     * Get whether or not this is a session cookie.
      *
      * @return bool|null
      */
@@ -224,7 +224,7 @@ class SetCookie
         return $this->data['Discard'];
     }
     /**
-     * Set whether or not this is a session cookie
+     * Set whether or not this is a session cookie.
      *
      * @param bool $discard Set to true or false if this is a session cookie
      */
@@ -233,7 +233,7 @@ class SetCookie
         $this->data['Discard'] = $discard;
     }
     /**
-     * Get whether or not this is an HTTP only cookie
+     * Get whether or not this is an HTTP only cookie.
      *
      * @return bool
      */
@@ -242,7 +242,7 @@ class SetCookie
         return $this->data['HttpOnly'];
     }
     /**
-     * Set whether or not this is an HTTP only cookie
+     * Set whether or not this is an HTTP only cookie.
      *
      * @param bool $httpOnly Set to true or false if this is HTTP only
      */
@@ -284,7 +284,7 @@ class SetCookie
         return \substr($requestPath, \strlen($cookiePath), 1) === '/';
     }
     /**
-     * Check if the cookie matches a domain value
+     * Check if the cookie matches a domain value.
      *
      * @param string $domain Domain to check against
      */
@@ -309,38 +309,37 @@ class SetCookie
         return (bool) \preg_match('/\\.' . \preg_quote($cookieDomain, '/') . '$/', $domain);
     }
     /**
-     * Check if the cookie is expired
+     * Check if the cookie is expired.
      */
     public function isExpired() : bool
     {
         return $this->getExpires() !== null && \time() > $this->getExpires();
     }
     /**
-     * Check if the cookie is valid according to RFC 6265
+     * Check if the cookie is valid according to RFC 6265.
      *
      * @return bool|string Returns true if valid or an error message if invalid
      */
     public function validate()
     {
-        // Names must not be empty, but can be 0
         $name = $this->getName();
-        if (empty($name) && !\is_numeric($name)) {
+        if ($name === '') {
             return 'The cookie name must not be empty';
         }
         // Check if any of the invalid characters are present in the cookie name
         if (\preg_match('/[\\x00-\\x20\\x22\\x28-\\x29\\x2c\\x2f\\x3a-\\x40\\x5c\\x7b\\x7d\\x7f]/', $name)) {
             return 'Cookie name must not contain invalid characters: ASCII ' . 'Control characters (0-31;127), space, tab and the ' . 'following characters: ()<>@,;:\\"/?={}';
         }
-        // Value must not be empty, but can be 0
+        // Value must not be null. 0 and empty string are valid. Empty strings
+        // are technically against RFC 6265, but known to happen in the wild.
         $value = $this->getValue();
-        if (empty($value) && !\is_numeric($value)) {
+        if ($value === null) {
             return 'The cookie value must not be empty';
         }
-        // Domains must not be empty, but can be 0
-        // A "0" is not a valid internet domain, but may be used as server name
-        // in a private network.
+        // Domains must not be empty, but can be 0. "0" is not a valid internet
+        // domain, but may be used as server name in a private network.
         $domain = $this->getDomain();
-        if (empty($domain) && !\is_numeric($domain)) {
+        if ($domain === null || $domain === '') {
             return 'The cookie domain must not be empty';
         }
         return \true;

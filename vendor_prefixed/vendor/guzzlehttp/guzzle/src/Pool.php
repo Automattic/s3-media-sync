@@ -2,6 +2,7 @@
 
 namespace WPCOM_VIP\GuzzleHttp;
 
+use WPCOM_VIP\GuzzleHttp\Promise as P;
 use WPCOM_VIP\GuzzleHttp\Promise\EachPromise;
 use WPCOM_VIP\GuzzleHttp\Promise\PromiseInterface;
 use WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface;
@@ -16,6 +17,8 @@ use WPCOM_VIP\Psr\Http\Message\RequestInterface;
  * When a function is yielded by the iterator, the function is provided the
  * "request_options" array that should be merged on top of any existing
  * options, and the function MUST then return a wait-able promise.
+ *
+ * @final
  */
 class Pool implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
 {
@@ -44,7 +47,7 @@ class Pool implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
         } else {
             $opts = [];
         }
-        $iterable = \WPCOM_VIP\GuzzleHttp\Promise\iter_for($requests);
+        $iterable = \WPCOM_VIP\GuzzleHttp\Promise\Create::iterFor($requests);
         $requests = static function () use($iterable, $client, $opts) {
             foreach ($iterable as $key => $rfn) {
                 if ($rfn instanceof \WPCOM_VIP\Psr\Http\Message\RequestInterface) {
@@ -52,7 +55,7 @@ class Pool implements \WPCOM_VIP\GuzzleHttp\Promise\PromisorInterface
                 } elseif (\is_callable($rfn)) {
                     (yield $key => $rfn($opts));
                 } else {
-                    throw new \InvalidArgumentException('Each value yielded by ' . 'the iterator must be a Psr7\\Http\\Message\\RequestInterface ' . 'or a callable that returns a promise that fulfills ' . 'with a Psr7\\Message\\Http\\ResponseInterface object.');
+                    throw new \InvalidArgumentException('Each value yielded by the iterator must be a Psr7\\Http\\Message\\RequestInterface or a callable that returns a promise that fulfills with a Psr7\\Message\\Http\\ResponseInterface object.');
                 }
             }
         };

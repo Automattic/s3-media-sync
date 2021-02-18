@@ -15,7 +15,7 @@ use WPCOM_VIP\Psr\Http\Message\StreamInterface;
 final class EasyHandle
 {
     /**
-     * @var resource cURL resource
+     * @var resource|\CurlHandle cURL resource
      */
     public $handle;
     /**
@@ -46,6 +46,10 @@ final class EasyHandle
      * @var \Throwable|null Exception during on_headers (if any)
      */
     public $onHeadersException;
+    /**
+     * @var \Exception|null Exception during createResponse (if any)
+     */
+    public $createResponseException;
     /**
      * Attach a response to the easy handle based on the received headers.
      *
