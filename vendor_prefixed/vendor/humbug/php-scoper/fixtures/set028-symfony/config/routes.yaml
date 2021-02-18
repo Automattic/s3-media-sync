@@ -1,3 +1,0 @@
-#index:
-#    path: /
-#    controller: WPCOM_VIP\App\Controller\DefaultController::index

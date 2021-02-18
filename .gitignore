@@ -1,2 +1,3 @@
 # Local-development dependencies
 /vendor/
+/vendor_prefixed/
