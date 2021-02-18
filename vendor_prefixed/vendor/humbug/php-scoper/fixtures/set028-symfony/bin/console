@@ -1,0 +1,32 @@
+#!/usr/bin/env php
+<?php 
+namespace WPCOM_VIP;
+
+use WPCOM_VIP\App\Kernel;
+use WPCOM_VIP\Symfony\Bundle\FrameworkBundle\Console\Application;
+use WPCOM_VIP\Symfony\Component\Console\Input\ArgvInput;
+use WPCOM_VIP\Symfony\Component\Debug\Debug;
+use WPCOM_VIP\Symfony\Component\Dotenv\Dotenv;
+\set_time_limit(0);
+require __DIR__ . '/../vendor/autoload.php';
+if (!\class_exists(\WPCOM_VIP\Symfony\Bundle\FrameworkBundle\Console\Application::class)) {
+    throw new \RuntimeException('You need to add "symfony/framework-bundle" as a Composer dependency.');
+}
+if (!isset($_SERVER['APP_ENV'])) {
+    if (!\class_exists(\WPCOM_VIP\Symfony\Component\Dotenv\Dotenv::class)) {
+        throw new \RuntimeException('APP_ENV environment variable is not defined. You need to define environment variables for configuration or add "symfony/dotenv" as a Composer dependency to load variables from a .env file.');
+    }
+    (new \WPCOM_VIP\Symfony\Component\Dotenv\Dotenv())->load(__DIR__ . '/../.env');
+}
+$input = new \WPCOM_VIP\Symfony\Component\Console\Input\ArgvInput();
+$env = $input->getParameterOption(['--env', '-e'], $_SERVER['APP_ENV'] ?? 'dev', \true);
+$debug = (bool) ($_SERVER['APP_DEBUG'] ?? 'prod' !== $env) && !$input->hasParameterOption('--no-debug', \true);
+if ($debug) {
+    \umask(00);
+    if (\class_exists(\WPCOM_VIP\Symfony\Component\Debug\Debug::class)) {
+        \WPCOM_VIP\Symfony\Component\Debug\Debug::enable();
+    }
+}
+$kernel = new \WPCOM_VIP\App\Kernel($env, $debug);
+$application = new \WPCOM_VIP\Symfony\Bundle\FrameworkBundle\Console\Application($kernel);
+$application->run($input);

@@ -1,14 +1,14 @@
 <?php
 
-use Aws\S3\S3ClientInterface;
-use Aws\CacheInterface;
-use Aws\LruArrayCache;
-use Aws\Result;
-use Aws\S3\Exception\S3Exception;
-use GuzzleHttp\Psr7;
-use GuzzleHttp\Psr7\Stream;
-use GuzzleHttp\Psr7\CachingStream;
-use Psr\Http\Message\StreamInterface;
+use WPCOM_VIP\Aws\S3\S3ClientInterface;
+use WPCOM_VIP\Aws\CacheInterface;
+use WPCOM_VIP\Aws\LruArrayCache;
+use WPCOM_VIP\Aws\Result;
+use WPCOM_VIP\Aws\S3\Exception\S3Exception;
+use WPCOM_VIP\GuzzleHttp\Psr7;
+use WPCOM_VIP\GuzzleHttp\Psr7\Stream;
+use WPCOM_VIP\GuzzleHttp\Psr7\CachingStream;
+use WPCOM_VIP\Psr\Http\Message\StreamInterface;
 
 /**
  * Props S3-Uploads and HM: https://github.com/humanmade/S3-Uploads/
