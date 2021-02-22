@@ -611,12 +611,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/JetBrains/phpstorm-stubs.git",
-                "reference": "6eecf1bb879fc0c3c48e0ac3e049f77371503a11"
+                "reference": "90ceda38662a41a42d820e218dbaed5ad6670e84"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/JetBrains/phpstorm-stubs/zipball/6eecf1bb879fc0c3c48e0ac3e049f77371503a11",
-                "reference": "6eecf1bb879fc0c3c48e0ac3e049f77371503a11",
+                "url": "https://api.github.com/repos/JetBrains/phpstorm-stubs/zipball/90ceda38662a41a42d820e218dbaed5ad6670e84",
+                "reference": "90ceda38662a41a42d820e218dbaed5ad6670e84",
                 "shasum": ""
             },
             "require-dev": {
@@ -647,7 +647,7 @@
                 "stubs",
                 "type"
             ],
-            "time": "2021-02-18T10:36:23+00:00"
+            "time": "2021-02-19T12:50:54+00:00"
         },
         {
             "name": "mtdowling/jmespath.php",
@@ -952,12 +952,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/console.git",
-                "reference": "3650057f1c18dea3cfffdcf2f7c5e39215dcd7b8"
+                "reference": "654d0c82276fde189d785170c496302212696e67"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/console/zipball/3650057f1c18dea3cfffdcf2f7c5e39215dcd7b8",
-                "reference": "3650057f1c18dea3cfffdcf2f7c5e39215dcd7b8",
+                "url": "https://api.github.com/repos/symfony/console/zipball/654d0c82276fde189d785170c496302212696e67",
+                "reference": "654d0c82276fde189d785170c496302212696e67",
                 "shasum": ""
             },
             "require": {
@@ -1030,7 +1030,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2021-02-16T11:16:02+00:00"
+            "time": "2021-02-22T15:36:50+00:00"
         },
         {
             "name": "symfony/filesystem",

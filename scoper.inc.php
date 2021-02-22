@@ -41,13 +41,17 @@ return [
 	// For more see: https://github.com/humbug/php-scoper#patchers
     'patchers' => [
 	    function (string $filePath, string $prefix, string $contents): string {
-			if ( $filePath === __DIR__ . '/vendor/aws/aws-sdk-php/src/functions.php' ) {
-				return preg_replace(
-					"%'\\\\\\\\(GuzzleHttp)%",
-					"'\\\\\\\\$prefix\\\\\\\\$1",
-					$contents
-				);
-			}
+		    $contents = preg_replace(
+			    [
+				    "%'\\\\\\\\(GuzzleHttp)%",
+				    "%(['|\"])(Aws\\\\)%"
+			    ],
+			    [
+				    "'\\\\\\\\$prefix\\\\\\\\$1",
+				    "$1\\\\\\\\$prefix\\\\\\\\$2"
+			    ],
+			    $contents
+		    );
 
 		    return $contents;
 	    },
