@@ -4,14 +4,20 @@
     "minimum-stability": "dev",
     "require": {
         "composer/installers": "~1.0",
-        "aws/aws-sdk-php": "~3.150.1",
-        "humbug/php-scoper": "^0.14.0"
+        "aws/aws-sdk-php": "~3.150.1"
+    },
+    "require-dev": {
+        "bamarni/composer-bin-plugin": "^1.4"
     },
     "scripts": {
         "post-install-cmd": "@prefix-dependencies",
         "post-update-cmd": "@prefix-dependencies",
         "prefix-dependencies": [
-            "@php ./vendor/bin/php-scoper add-prefix --output-dir=./vendor_prefixed --force",
+            "composer bin php-scoper config minimum-stability dev",
+            "composer bin php-scoper config prefer-stable true",
+            "composer bin php-scoper require --dev humbug/php-scoper",
+            "php-scoper add-prefix --output-dir vendor_prefixed/ --force",
+            "rm -rf vendor-bin/ vendor_prefixed/vendor-bin/",
             "composer --working-dir=./vendor_prefixed dumpautoload -o"
         ]
     }

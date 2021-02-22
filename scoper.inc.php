@@ -25,6 +25,7 @@ return [
                 'tests',
                 'Tests',
                 'vendor-bin',
+	            'bamarni'
             ])
             ->in('vendor'),
         Finder::create()->append([

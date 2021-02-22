@@ -30,7 +30,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI && class_exists( 'WPCOM_VIP_CLI_Command' ) ) 
  */
 function s3_media_sync_setup() {
 	// Require AWS Autoloader file.
-	require_once dirname( __FILE__ ) . '/vendor_prefixed/vendor/scoper-autoload.php';
+	require_once dirname( __FILE__ ) . '/vendor_prefixed/vendor/autoload.php';
 
 	$instance = S3_Media_Sync::init();
 	$instance->setup();
