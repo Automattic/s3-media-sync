@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f7f0f9e5064d262c9617941c27752bd4",
+    "content-hash": "8a2581748c91d5efa08fbb7834ed9ad0",
     "packages": [
         {
             "name": "aws/aws-sdk-php",
@@ -730,54 +730,7 @@
             "time": "2021-01-22T09:19:47+00:00"
         }
     ],
-    "packages-dev": [
-        {
-            "name": "bamarni/composer-bin-plugin",
-            "version": "1.4.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/bamarni/composer-bin-plugin.git",
-                "reference": "9329fb0fbe29e0e1b2db8f4639a193e4f5406225"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/bamarni/composer-bin-plugin/zipball/9329fb0fbe29e0e1b2db8f4639a193e4f5406225",
-                "reference": "9329fb0fbe29e0e1b2db8f4639a193e4f5406225",
-                "shasum": ""
-            },
-            "require": {
-                "composer-plugin-api": "^1.0 || ^2.0",
-                "php": "^5.5.9 || ^7.0 || ^8.0"
-            },
-            "require-dev": {
-                "composer/composer": "^1.0 || ^2.0",
-                "symfony/console": "^2.5 || ^3.0 || ^4.0"
-            },
-            "type": "composer-plugin",
-            "extra": {
-                "class": "Bamarni\\Composer\\Bin\\Plugin"
-            },
-            "autoload": {
-                "psr-4": {
-                    "Bamarni\\Composer\\Bin\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "description": "No conflicts for your bin dependencies",
-            "keywords": [
-                "composer",
-                "conflict",
-                "dependency",
-                "executable",
-                "isolation",
-                "tool"
-            ],
-            "time": "2020-05-03T08:27:20+00:00"
-        }
-    ],
+    "packages-dev": [],
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": [],

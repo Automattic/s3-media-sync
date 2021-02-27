@@ -24,10 +24,8 @@ return [
                 'test_old',
                 'tests',
                 'Tests',
-                'vendor-bin',
-	            'bamarni'
             ])
-            ->in('vendor'),
+            ->in(__DIR__ . '/vendor'),
         Finder::create()->append([
             'composer.json',
             'composer.lock',
@@ -42,14 +40,22 @@ return [
 	// For more see: https://github.com/humbug/php-scoper#patchers
     'patchers' => [
 	    function (string $filePath, string $prefix, string $contents): string {
+		    $prefix_double_slashed = addslashes( addslashes( $prefix ) );
+
 		    $contents = preg_replace(
 			    [
 				    "%'\\\\\\\\(GuzzleHttp)%",
-				    "%(['|\"])(Aws\\\\)%"
+				    "%(['|\"])(Aws\\\\)%",
+				    "%\s\\\\(GuzzleHttp)%",
+				    "%\s\\\\(Aws)%",
+				    "%$prefix_double_slashed\\\\\\\\Ymd\\\\\\\\THis\\\\\\\\Z%"
 			    ],
 			    [
 				    "'\\\\\\\\$prefix\\\\\\\\$1",
-				    "$1\\\\\\\\$prefix\\\\\\\\$2"
+				    "$1\\\\\\\\$prefix\\\\\\\\$2",
+				    " \\\\$prefix\\\\$1", // leading space is required.
+				    " \\\\$prefix\\\\$1", // leading space is required.
+				    "Ymd\THis\Z", // ISO8601_BASIC date format.
 			    ],
 			    $contents
 		    );
