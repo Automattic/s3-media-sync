@@ -38,3 +38,9 @@ wp vip migration validate-attachments invalid-attachments.csv --url=example-site
 The log is then available at `invalid-attachments.csv`. The full command can be found here:
 
 https://github.com/Automattic/vip-go-mu-plugins/blob/master/wp-cli/vip-migrations.php#L165-L187
+
+
+## Changelog
+
+### 1.1.0
+- Fix: Upload images edited within WordPress to the bucket.
