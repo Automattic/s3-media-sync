@@ -47,6 +47,7 @@ class S3_Media_Sync {
 			// Perform on-the-fly media syncs by hooking into these actions
 			add_filter( 'wp_handle_upload', [ $this, 'add_attachment_to_s3' ], 10, 2 );
 			add_action( 'delete_attachment', [ $this, 'delete_attachment_from_s3' ], 10, 1 );
+			add_filter( 'wp_save_image_editor_file', [ $this, 'add_updated_attachment_to_s3' ], 10, 5 );
 		}
 	}
 
@@ -82,6 +83,27 @@ class S3_Media_Sync {
 
 		// Delete the matching attachment
 		$this->s3()->deleteMatchingObjects( $bucket, $path );
+	}
+
+	/**
+	 * When an image is about to be saved from the image editor, save the image first, and then try
+	 * and copy it to S3.
+	 *
+	 * This filter is documented here https://developer.wordpress.org/reference/hooks/wp_save_image_editor_file/
+	 */
+	public function add_updated_attachment_to_s3( $override, $filename, $image, $mime_type, $post_ID ) {
+		// Go ahead and save the image
+		$override = $image->save( $filename, $mime_type );
+
+		// If there wasn't an error while saving the image, copy to S3.
+		if ( ! is_wp_error( $override ) ) {
+			// The image saved, try and send it to S3.
+			$source_path      = $filename;
+			$destination_path = trailingslashit( $this->get_s3_bucket_url() ) . str_replace( 'vip://', '', $source_path );
+			copy( $source_path, $destination_path );
+		}
+
+		return $override;
 	}
 
 	/**
