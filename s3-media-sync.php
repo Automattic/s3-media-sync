@@ -29,12 +29,8 @@ if ( defined( 'WP_CLI' ) && WP_CLI && class_exists( 'WPCOM_VIP_CLI_Command' ) ) 
  * Set up the plugin
  */
 function s3_media_sync_setup() {
-
-	// Ensure the AWS SDK can be loaded.
-	if ( ! class_exists( '\\Aws\\S3\\S3Client' ) ) {
-		// Require AWS Autoloader file.
-		require_once dirname( __FILE__ ) . '/vendor/autoload.php';
-	}
+	// Autoload namespaced dependencies.
+	require_once dirname( __FILE__ ) . '/vendor_prefixed/vendor/autoload.php';
 
 	$instance = S3_Media_Sync::init();
 	$instance->setup();

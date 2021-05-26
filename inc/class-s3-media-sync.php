@@ -1,5 +1,7 @@
 <?php
 
+use WPCOM_VIP\Aws\S3\S3Client;
+
 class S3_Media_Sync {
 
 	private static $instance;
@@ -294,7 +296,7 @@ class S3_Media_Sync {
 	/**
 	 * Props S3 Uploads and HM: https://github.com/humanmade/S3-Uploads/
 	 *
-	 * @return Aws\S3\S3Client
+	 * @return S3Client
 	 */
 	public function s3() {
 		if ( ! empty( $this->s3 ) ) {
@@ -324,7 +326,7 @@ class S3_Media_Sync {
 			$params['request.options']['proxy'] = $proxy_auth . $proxy_address;
 		}
 
-		$this->s3 = Aws\S3\S3Client::factory( $params );
+		$this->s3 = S3Client::factory( $params );
 
 		return $this->s3;
 	}
