@@ -81,7 +81,7 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 				}
 			}
 			// Pause and clear caches to free up memory
-			$this->stop_the_insanity();
+			$this->vip_inmemory_cleanup();
 			sleep( 1 );
 			$offset += $limit;
 		} while ( count( $attachments ) );
@@ -102,11 +102,11 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 		$s3     = S3_Media_Sync::init()->s3();
 		$bucket = S3_Media_Sync::init()->get_s3_bucket();
 		$prefix = '';
-		
+
 		if ( strpos( $bucket, '/' ) ) {
 			$prefix = trailingslashit( str_replace( strtok( $bucket, '/' ) . '/', '', $bucket ) );
 		}
-		
+
 		if ( isset( $args[0] ) ) {
 			$prefix .= ltrim( $args[0], '/' );
 			if ( strpos( $args[0], '.' ) === false ) {
@@ -129,7 +129,7 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 			WP_CLI::error( $e->getMessage() );
 		}
 		WP_CLI::success( sprintf( 'Successfully deleted %s', $prefix ) );
-	}	
+	}
 }
 
 WP_CLI::add_command( 's3-media', 'S3_Media_Sync_WP_CLI_Command' );
