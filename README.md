@@ -42,5 +42,8 @@ https://github.com/Automattic/vip-go-mu-plugins/blob/master/wp-cli/vip-migration
 
 ## Changelog
 
+### 1.2.0
+- Update Composer dependencies for PHP 8.0 compatibility.
+
 ### 1.1.0
 - Fix: Upload images edited within WordPress to the bucket.
