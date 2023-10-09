@@ -19,7 +19,7 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 		$url = wp_get_attachment_url( $attachment_id );
 	
 		if ( empty( $url ) ) {
-		    WP_CLI::error( 'Failed to retrieve attachment URL for ID: ' . $attachment_id );
+			WP_CLI::error( 'Failed to retrieve attachment URL for ID: ' . $attachment_id );
 		}
 	
 		// By switching the URLs from http:// to https:// we save a request, since it will be redirected to the SSL url
