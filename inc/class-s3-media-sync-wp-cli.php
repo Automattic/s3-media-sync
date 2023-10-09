@@ -4,7 +4,7 @@ use \WP_CLI\Utils;
 
 class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 
-    	/**
+	/**
 	* Upload a single attachment to S3
 	*
 	* @synopsis <attachment_id>
