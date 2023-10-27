@@ -6,7 +6,19 @@ Props [S3-Uploads](https://github.com/humanmade/S3-Uploads/) and [Human Made](ht
 
 ## Setup
 
-* Activate plugin
+### Build the plugin
+
+This plugin uses [composer](https://getcomposer.org/) as a package manager, after downloading the plugin (as a zip or via `git pull`) run one of the following:
+
+* `composer install --no-dev --optimize-autoloader` for production
+* `composer install` for development`https://getcomposer.org/`
+
+Doing so will create a `vendor` folder which is required for the plugin to function correctly. If your application is using CI/CD which includes one of the above commands you may be able to skip this step.
+
+### Activate the plugin
+
+* Upload the plugin to your application `plugin` directory
+* Activate plugin through code or from WP-Admin
 * Create an IAM user with Programmatic Access
 * Enter the provided AWS S3 API keys on the Settings page
 * Backfill the uploads directory on AWS by running the following command: 
