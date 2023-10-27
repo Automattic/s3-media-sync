@@ -11,7 +11,7 @@ Props [S3-Uploads](https://github.com/humanmade/S3-Uploads/) and [Human Made](ht
 This plugin uses [composer](https://getcomposer.org/) as a package manager, after downloading the plugin (as a zip or via `git pull`) run one of the following:
 
 * `composer install --no-dev --optimize-autoloader` for production
-* `composer install` for development`https://getcomposer.org/`
+* `composer install` for development
 
 Doing so will create a `vendor` folder which is required for the plugin to function correctly. If your application is using CI/CD which includes one of the above commands you may be able to skip this step.
 
