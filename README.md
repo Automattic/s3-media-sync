@@ -1,26 +1,26 @@
 # S3 Media Sync
 
-This plugin syncs the uploads directory on a VIP Go environment to an AWS S3 instance.
+This plugin syncs the `uploads` directory of a VIP Platform WordPress environment to an AWS S3 instance.
 
-Props [S3-Uploads](https://github.com/humanmade/S3-Uploads/) and [Human Made](https://hmn.md/) for creating much of the functionality: https://github.com/humanmade/S3-Uploads
+Props to [S3-Uploads](https://github.com/humanmade/S3-Uploads/) and [Human Made](https://hmn.md/) for creating much of the functionality: https://github.com/humanmade/S3-Uploads
 
 ## Setup
 
 ### Build the plugin
 
-This plugin uses [composer](https://getcomposer.org/) as a package manager, after downloading the plugin (as a zip or via `git pull`) run one of the following:
+This plugin uses [composer](https://getcomposer.org/) as a package manager. After downloading the plugin (as a ZIP file or via `git pull`) run one of the following commands:
 
-* `composer install --no-dev --optimize-autoloader` for production
-* `composer install` for development
+* For production: `composer install --no-dev --optimize-autoloader` 
+* For development: `composer install` 
 
-Doing so will create a `vendor` folder which is required for the plugin to function correctly. If your application is using CI/CD which includes one of the above commands you may be able to skip this step.
+Running one of the above commands will create a `vendor` directory which is required for the plugin to function correctly. Applications that are using CI/CD already run one of these commands automatically and can skip this step.
 
 ### Activate the plugin
 
-* Upload the plugin to your application `plugin` directory
-* Activate plugin through code or from WP-Admin
-* Create an IAM user with Programmatic Access
-* Enter the provided AWS S3 API keys on the Settings page
+* [Commit the plugin](https://docs.wpvip.com/technical-references/installing-plugins-best-practices/) to your application's `plugins` directory.
+* Activate the plugin through code or within the WordPress Admin dashboard.
+* [Create an IAM user with Programmatic Access](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html).
+* Enter the provided AWS S3 API keys on the plugins's Settings page.
 * Backfill the uploads directory on AWS by running the following command: 
 
 ```
@@ -31,7 +31,7 @@ wp s3-media upload-all --url=example-site.com
 
 *How can I upload media to a subdirectory in S3?*
 
-Let's say you have a bucket named `my-awesome-site`, but you want all your media to go into the `preprod` subdirectory. On the S3 Media Sync settings page, you would enter the following for the `S3 Bucket Name` field:
+As an example, you already have a bucket named `my-awesome-site` but you want all of your media to go into a `preprod` subdirectory of that bucket. To configure media to upload to that subdirectory, go to the S3 Media Sync settings page and enter the following for the `S3 Bucket Name` field:
 
 ```
 my-awesome-site/preprod
@@ -39,15 +39,15 @@ my-awesome-site/preprod
 
 Then, all media will automatically be kept in-sync within `my-awesome-site/preprod/wp-content/uploads`. 
 
-*How can I ensure all the attachments were uploaded?*
+*How can I confirm if all of the attachments were uploaded?*
 
-You can see which attachments were skipped by running the following command:
+You can check which attachments were skipped by running the following command:
 
 ```
 wp vip migration validate-attachments invalid-attachments.csv --url=example-site.com
 ```
 
-The log is then available at `invalid-attachments.csv`. The full command can be found here:
+The generated log file will be available at `invalid-attachments.csv`. The full command can be found here:
 
 https://github.com/Automattic/vip-go-mu-plugins/blob/master/wp-cli/vip-migrations.php#L165-L187
 
