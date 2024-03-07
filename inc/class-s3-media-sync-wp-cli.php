@@ -10,6 +10,10 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 	* @synopsis <attachment_id>
 	*/
 	public function upload( $args, $assoc_args ) {
+		// Get the source and destination and initialize some concurrency variables
+                $from    = wp_get_upload_dir();
+                $to      = S3_Media_Sync::init()->get_s3_bucket_url();
+		
 		$attachment_id = intval( $args[0] );
 	
 		if ( $attachment_id <= 0 ) {
@@ -50,7 +54,12 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 	
 		if ( 200 === $response_code ) {
 			// Process the response and upload the attachment to S3
-			// ...
+			$path = str_replace( $from['baseurl'], '', $url );
+
+			// Check if the file exists before copying it over
+			if ( ! is_file( trailingslashit( $to ) . 'wp-content/uploads' . $path ) ) {
+				copy( $from['basedir'] . $path, trailingslashit( $to ) . 'wp-content/uploads' . $path );
+			}
 			WP_CLI::success( 'Attachment ID ' . $attachment_id . ' successfully uploaded to S3.' );
 		} else {
 			WP_CLI::error( 'Failed to fetch attachment from URL for Attachment ID ' . $attachment_id . ': ' . $url );
