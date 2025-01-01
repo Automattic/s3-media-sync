@@ -3,6 +3,7 @@
  * Plugin Name: S3 Media Sync
  * Description: Sync full media backups to S3.
  * Author: Alexis Kulash, WordPress VIP
+ * Requires PHP: 8.1
  * Text Domain: s3-media-sync
  * Domain Path: /languages/
  * Version: 1.2.0
