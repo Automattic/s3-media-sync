@@ -90,10 +90,6 @@ The generated log file will be available at `invalid-attachments.csv`. The full 
 https://github.com/Automattic/vip-go-mu-plugins/blob/master/wp-cli/vip-migrations.php#L165-L187
 
 
-## Changelog
+## Change Log
 
-### 1.2.0
-- Update Composer dependencies for PHP 8.0 compatibility.
-
-### 1.1.0
-- Fix: Upload images edited within WordPress to the bucket.
+[View the change log](https://github.com/Automattic/s3-media-sync/blob/master/CHANGELOG.md).
