@@ -27,6 +27,44 @@ Running one of the above commands will create a `vendor` directory which is requ
 wp s3-media upload-all --url=example-site.com
 ```
 
+## Development
+
+### Running Tests
+
+This plugin uses PHPUnit for testing. To run the test suite:
+
+1. Install development dependencies:
+```
+composer install
+```
+
+2. Install the WordPress test suite:
+```
+./bin/install-wp-tests.sh s3_media_sync_test root 'root' localhost latest
+```
+
+The install script parameters are:
+- Database name: `s3_media_sync_test`
+- Database user: `root`
+- Database password: `` (empty)
+- Database host: `localhost`
+- WordPress version: `latest`
+
+3. Run tests:
+```
+composer test
+```
+
+For specific test files:
+```
+composer test -- tests/test-class-s3-media-sync-wp-cli.php
+```
+
+For coverage reports:
+```
+composer test -- --coverage-html coverage
+```
+
 ## FAQ
 
 *How can I upload media to a subdirectory in S3?*
