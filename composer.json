@@ -3,11 +3,12 @@
     "type": "wordpress-plugin",
     "require": {
         "composer/installers": "~1.0",
-        "aws/aws-sdk-php": "~3.150.1"
+        "aws/aws-sdk-php": "~3.288.1"
     },
     "config": {
         "allow-plugins": {
-            "composer/installers": true
+            "composer/installers": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true
         }
     }
 }

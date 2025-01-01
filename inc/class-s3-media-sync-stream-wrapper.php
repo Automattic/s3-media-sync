@@ -190,7 +190,7 @@ class S3_Media_Sync_Stream_Wrapper {
 		// Attempt to guess the ContentType of the upload based on the
 		// file extension of the key. Added by Joe Hoyle
 		if ( ! isset( $params['ContentType'] ) &&
-			( $type = Psr7\mimetype_from_filename( $params['Key'] ) )
+			( $type = $this->get_mime_type( $params['Key'] ) )
 		) {
 			$params['ContentType'] = $type;
 		}
@@ -1019,5 +1019,11 @@ class S3_Media_Sync_Stream_Wrapper {
 		$size = $this->body->getSize();
 
 		return $size !== null ? $size : $this->size;
+	}
+
+	protected function get_mime_type( $path ) {
+		// Use WordPress's wp_check_filetype instead of Guzzle's mimetype_from_filename
+		$filetype = wp_check_filetype( $path );
+		return $filetype['type'] ?: 'application/octet-stream';
 	}
 }
