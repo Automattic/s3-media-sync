@@ -22,7 +22,7 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 	
 		$url = wp_get_attachment_url( $attachment_id );
 	
-		if ( empty( $url ) ) {
+		if ( false === $url || '' === $url ) {
 			WP_CLI::error( 'Failed to retrieve attachment URL for ID: ' . $attachment_id );
 		}
 	
