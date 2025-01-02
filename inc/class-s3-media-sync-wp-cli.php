@@ -2,13 +2,39 @@
 
 use \WP_CLI\Utils;
 
+/**
+ * Class S3_Media_Sync_WP_CLI_Command
+ *
+ * Provides WP-CLI commands for managing media uploads to S3.
+ *
+ * ## EXAMPLES
+ *
+ *     # Upload a single attachment to S3.
+ *     $ wp s3-media upload <attachment_id>
+ *
+ *     # Upload all validated media to S3.
+ *     $ wp s3-media upload-all
+ *
+ *     # Remove files from S3.
+ *     $ wp s3-media rm <path> [--regex=<regex>]
+ */
 class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 
 	/**
-	* Upload a single attachment to S3
-	*
-	* @synopsis <attachment_id>
-	*/
+	 * Upload a single attachment to S3
+	 *
+	 * @synopsis <attachment_id>
+	 *
+	 * ## OPTIONS
+	 *
+	 * <attachment_id>
+	 * : The ID of the attachment to upload to S3.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Upload an attachment with ID 123 to S3.
+	 *     $ wp s3-media upload 123
+	 */
 	public function upload( $args, $assoc_args ) {
 		// Get the source and destination and initialize some concurrency variables
 		$from	= wp_get_upload_dir();
@@ -70,7 +96,25 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 	 * Upload all validated media to S3
 	 *
 	 * @subcommand upload-all
-	*/
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--threads=<number>]
+	 * : The number of concurrent threads to use for uploading. Defaults to 10.
+	 * ---
+	 * default: 10
+	 * options:
+	 *   - 1-10
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Upload all media to S3 using the default number of threads.
+	 *     $ wp s3-media upload-all
+	 *
+	 *     # Upload all media to S3 using 5 threads.
+	 *     $ wp s3-media upload-all --threads=5
+	 */
 	public function upload_all( $args, $assoc_args ) {
 		global $wpdb;
 
@@ -154,12 +198,28 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 	}
 
 	/**
-	* Remove files from S3
-	*
-	* Props S3 Uploads and HM: https://github.com/humanmade/S3-Uploads/
-	*
-	* @synopsis <path> [--regex=<regex>]
-	*/
+	 * Remove files from S3
+	 *
+	 * Props S3 Uploads and HM: https://github.com/humanmade/S3-Uploads/
+	 *
+	 * @synopsis <path> [--regex=<regex>]
+	 *
+	 * ## OPTIONS
+	 *
+	 * <path>
+	 * : The path of the file or directory to remove from S3.
+	 *
+	 * [--regex=<regex>]
+	 * : Optional regex pattern to match files for deletion.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Remove a specific file from S3.
+	 *     $ wp s3-media rm path/to/file.jpg
+	 *
+	 *     # Remove all files matching a regex pattern from S3.
+	 *     $ wp s3-media rm path/to/files --regex='.*\.jpg'
+	 */
 	public function rm( $args, $args_assoc ) {
 		$s3     = S3_Media_Sync::init()->s3();
 		$bucket = S3_Media_Sync::init()->get_s3_bucket();
