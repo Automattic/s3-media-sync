@@ -16,7 +16,7 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 		
 		$attachment_id = absint( $args[0] );
 	
-		if ( $attachment_id <= 0 ) {
+		if ( $attachment_id === 0 ) {
 			WP_CLI::error( 'Invalid attachment ID.' );
 		}
 	
