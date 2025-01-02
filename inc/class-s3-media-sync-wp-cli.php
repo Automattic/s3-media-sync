@@ -62,7 +62,7 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 			}
 			WP_CLI::success( 'Attachment ID ' . $attachment_id . ' successfully uploaded to S3.' );
 		} else {
-			WP_CLI::error( 'Failed to fetch attachment from URL for Attachment ID ' . $attachment_id . ': ' . $url );
+			WP_CLI::error( 'Failed to fetch attachment from URL for attachment ID ' . $attachment_id . ': ' . $url );
 		}
 	}
 	
