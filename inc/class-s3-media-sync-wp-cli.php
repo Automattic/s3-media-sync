@@ -39,7 +39,7 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 	
 		// Check for errors before setting options
 		if (curl_errno($ch)) {
-			WP_CLI::error( 'cURL error for Attachment ID ' . $attachment_id . ': ' . curl_error( $ch ) );
+			WP_CLI::error( 'cURL error for attachment ID ' . $attachment_id . ': ' . curl_error( $ch ) );
 		}
 	
 		$response = curl_exec( $ch );
