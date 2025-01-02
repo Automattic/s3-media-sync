@@ -23,8 +23,61 @@ Running one of the above commands will create a `vendor` directory which is requ
 * Enter the provided AWS S3 API keys on the plugins's Settings page.
 * Backfill the uploads directory on AWS by running the following command: 
 
-```
+```sh
 wp s3-media upload-all --url=example-site.com
+```
+
+## WP-CLI Commands
+
+This plugin provides several WP-CLI commands for managing media uploads to S3.
+
+### Upload a Single Attachment
+
+To upload a single attachment to S3, use the following command:
+
+```sh
+wp s3-media upload <attachment_id>
+```
+
+**Example:**
+
+```sh
+wp s3-media upload 123
+```
+
+### Upload All Validated Media
+
+To upload all validated media to S3, use the command:
+
+```sh
+wp s3-media upload-all [--threads=<number>]
+```
+
+**Options:**
+- `--threads=<number>`: The number of concurrent threads to use for uploading. Defaults to 10 (range: 1-10).
+
+**Example:**
+
+```sh
+wp s3-media upload-all --threads=5
+```
+
+### Remove Files from S3
+
+To remove files from S3, use the command:
+
+```sh
+wp s3-media rm <path> [--regex=<regex>]
+```
+
+**Options:**
+- `<path>`: The path of the file or directory to remove from S3.
+- `--regex=<regex>`: Optional regex pattern to match files for deletion.
+
+**Example:**
+
+```sh
+wp s3-media rm path/to/file.jpg
 ```
 
 ## Development
@@ -34,12 +87,12 @@ wp s3-media upload-all --url=example-site.com
 This plugin uses PHPUnit for testing. To run the test suite:
 
 1. Install development dependencies:
-```
+```sh
 composer install
 ```
 
 2. Install the WordPress test suite:
-```
+```sh
 ./bin/install-wp-tests.sh s3_media_sync_test root 'root' localhost latest
 ```
 
@@ -51,17 +104,17 @@ The install script parameters are:
 - WordPress version: `latest`
 
 3. Run tests:
-```
+```sh
 composer test
 ```
 
 For specific test files:
-```
+```sh
 composer test -- tests/test-class-s3-media-sync-wp-cli.php
 ```
 
 For coverage reports:
-```
+```sh
 composer test -- --coverage-html coverage
 ```
 
@@ -81,7 +134,7 @@ Then, all media will automatically be kept in-sync within `my-awesome-site/prepr
 
 You can check which attachments were skipped by running the following command:
 
-```
+```sh
 wp vip migration validate-attachments invalid-attachments.csv --url=example-site.com
 ```
 
