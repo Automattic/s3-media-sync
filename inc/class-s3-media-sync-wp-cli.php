@@ -5,6 +5,68 @@ use \WP_CLI\Utils;
 class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 
 	/**
+	* Upload a single attachment to S3
+	*
+	* @synopsis <attachment_id>
+	*/
+	public function upload( $args, $assoc_args ) {
+		// Get the source and destination and initialize some concurrency variables
+		$from	= wp_get_upload_dir();
+		$to	= S3_Media_Sync::init()->get_s3_bucket_url();
+		
+		$attachment_id = absint( $args[0] );
+	
+		if ( $attachment_id === 0 ) {
+			WP_CLI::error( 'Invalid attachment ID.' );
+		}
+	
+		$url = wp_get_attachment_url( $attachment_id );
+	
+		if ( false === $url || '' === $url ) {
+			WP_CLI::error( 'Failed to retrieve attachment URL for ID: ' . $attachment_id );
+		}
+	
+		// By switching the URLs from http:// to https:// we save a request, since it will be redirected to the SSL url
+		if ( is_ssl() ) {
+			$url = str_replace( 'http://', 'https://', $url );
+		}
+	
+		$ch = curl_init();
+		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt( $ch, CURLOPT_URL, $url );
+		curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, true );
+		curl_setopt( $ch, CURLOPT_NOBODY, true );
+	
+		// Check for errors before setting options
+		if ( curl_errno( $ch ) ) {
+			WP_CLI::error( 'cURL error for attachment ID ' . $attachment_id . ': ' . curl_error( $ch ) );
+		}
+	
+		$response = curl_exec( $ch );
+		
+		// Check for errors after executing cURL request
+		if ( curl_errno( $ch ) ) {
+			WP_CLI::error( 'cURL error for attachment ID ' . $attachment_id . ': ' . curl_error( $ch ) );
+		}
+	
+		$response_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+		curl_close( $ch );
+	
+		if ( 200 === $response_code ) {
+			// Process the response and upload the attachment to S3
+			$path = str_replace( $from['baseurl'], '', $url );
+
+			// Check if the file exists before copying it over
+			if ( ! is_file( trailingslashit( $to ) . 'wp-content/uploads' . $path ) ) {
+				copy( $from['basedir'] . $path, trailingslashit( $to ) . 'wp-content/uploads' . $path );
+			}
+			WP_CLI::success( 'Attachment ID ' . $attachment_id . ' successfully uploaded to S3.' );
+		} else {
+			WP_CLI::error( 'Failed to fetch attachment from URL for attachment ID ' . $attachment_id . ': ' . $url );
+		}
+	}
+	
+	/**
 	 * Upload all validated media to S3
 	 *
 	 * @subcommand upload-all
