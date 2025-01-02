@@ -11,8 +11,8 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 	*/
 	public function upload( $args, $assoc_args ) {
 		// Get the source and destination and initialize some concurrency variables
-                $from    = wp_get_upload_dir();
-                $to      = S3_Media_Sync::init()->get_s3_bucket_url();
+		$from	= wp_get_upload_dir();
+		$to	= S3_Media_Sync::init()->get_s3_bucket_url();
 		
 		$attachment_id = absint( $args[0] );
 	
