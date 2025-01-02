@@ -23,7 +23,7 @@ Running one of the above commands will create a `vendor` directory which is requ
 * Enter the provided AWS S3 API keys on the plugins's Settings page.
 * Backfill the uploads directory on AWS by running the following command: 
 
-```
+```sh
 wp s3-media upload-all --url=example-site.com
 ```
 
@@ -87,12 +87,12 @@ wp s3-media rm path/to/file.jpg
 This plugin uses PHPUnit for testing. To run the test suite:
 
 1. Install development dependencies:
-```
+```sh
 composer install
 ```
 
 2. Install the WordPress test suite:
-```
+```sh
 ./bin/install-wp-tests.sh s3_media_sync_test root 'root' localhost latest
 ```
 
@@ -104,17 +104,17 @@ The install script parameters are:
 - WordPress version: `latest`
 
 3. Run tests:
-```
+```sh
 composer test
 ```
 
 For specific test files:
-```
+```sh
 composer test -- tests/test-class-s3-media-sync-wp-cli.php
 ```
 
 For coverage reports:
-```
+```sh
 composer test -- --coverage-html coverage
 ```
 
@@ -134,7 +134,7 @@ Then, all media will automatically be kept in-sync within `my-awesome-site/prepr
 
 You can check which attachments were skipped by running the following command:
 
-```
+```sh
 wp vip migration validate-attachments invalid-attachments.csv --url=example-site.com
 ```
 
