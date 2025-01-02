@@ -27,6 +27,59 @@ Running one of the above commands will create a `vendor` directory which is requ
 wp s3-media upload-all --url=example-site.com
 ```
 
+## WP-CLI Commands
+
+This plugin provides several WP-CLI commands for managing media uploads to S3.
+
+### Upload a Single Attachment
+
+To upload a single attachment to S3, use the following command:
+
+```sh
+wp s3-media upload <attachment_id>
+```
+
+**Example:**
+
+```sh
+wp s3-media upload 123
+```
+
+### Upload All Validated Media
+
+To upload all validated media to S3, use the command:
+
+```sh
+wp s3-media upload-all [--threads=<number>]
+```
+
+**Options:**
+- `--threads=<number>`: The number of concurrent threads to use for uploading. Defaults to 10 (range: 1-10).
+
+**Example:**
+
+```sh
+wp s3-media upload-all --threads=5
+```
+
+### Remove Files from S3
+
+To remove files from S3, use the command:
+
+```sh
+wp s3-media rm <path> [--regex=<regex>]
+```
+
+**Options:**
+- `<path>`: The path of the file or directory to remove from S3.
+- `--regex=<regex>`: Optional regex pattern to match files for deletion.
+
+**Example:**
+
+```sh
+wp s3-media rm path/to/file.jpg
+```
+
 ## Development
 
 ### Running Tests
