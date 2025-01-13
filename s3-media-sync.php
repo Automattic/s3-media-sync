@@ -6,7 +6,7 @@
  * Requires PHP: 8.1
  * Text Domain: s3-media-sync
  * Domain Path: /languages/
- * Version: 1.3.0
+ * Version: 1.4.0
  */
 
 /**
