@@ -1,3 +1,4 @@
 # Local-development dependencies
 /vendor/
 composer.lock
+/.phpunit.result.cache
