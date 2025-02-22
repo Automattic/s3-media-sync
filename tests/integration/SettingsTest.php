@@ -10,6 +10,8 @@ namespace S3_Media_Sync\Tests\Integration;
 use S3_Media_Sync;
 use S3_Media_Sync\Tests\TestCase;
 use PHPUnit\Framework\Assert;
+use Aws\S3\S3Client;
+use Mockery;
 
 /**
  * Test case for S3 Media Sync settings validation.
@@ -36,6 +38,7 @@ class SettingsTest extends TestCase {
 					'object_acl' => 'public-read',
 				],
 				's3-media-sync-settings-error',
+				true,
 			],
 			'empty settings' => [
 				[
@@ -46,6 +49,7 @@ class SettingsTest extends TestCase {
 					'object_acl' => 'public-read',
 				],
 				's3-media-sync-settings-error',
+				false,
 			],
 		];
 	}
@@ -57,9 +61,19 @@ class SettingsTest extends TestCase {
 	 * 
 	 * @param array  $settings    The settings to test with.
 	 * @param string $error_code  The expected error code.
+	 * @param bool   $should_validate Whether validation should be performed.
 	 * @throws \ReflectionException If reflection fails.
 	 */
-	public function test_invalid_settings_cause_admin_error_notice( array $settings, string $error_code ): void {
+	public function test_invalid_settings_cause_admin_error_notice( array $settings, string $error_code, bool $should_validate ): void {
+		// Create a mock S3 client for validation.
+		$mock_s3_client = Mockery::mock( S3Client::class );
+		$mock_s3_client->shouldReceive( 'doesBucketExist' )
+			->with( $settings['bucket'] )
+			->andReturn( false );
+
+		// Update WordPress option
+		update_option( 's3_media_sync_settings', $settings );
+
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
@@ -67,11 +81,29 @@ class SettingsTest extends TestCase {
 			$settings
 		);
 
+		// Only set the S3 client if we should validate
+		if ( $should_validate ) {
+			$this::set_private_property(
+				$this->s3_media_sync::class,
+				$this->s3_media_sync,
+				's3',
+				$mock_s3_client
+			);
+		}
+
 		$this->s3_media_sync->setup();
 		$this->s3_media_sync->s3_media_sync_settings_validation( $settings );
 
 		$admin_error_codes = wp_list_pluck( get_settings_errors(), 'code' );
-		Assert::assertContains( $error_code, $admin_error_codes );
+
+		if ( $should_validate ) {
+			Assert::assertContains( $error_code, $admin_error_codes, 'Settings validation should have failed' );
+		} else {
+			Assert::assertEmpty( $admin_error_codes, 'No validation errors should be present for empty settings' );
+		}
+
+		// Clean up
+		delete_option( 's3_media_sync_settings' );
 	}
 
 	/**
@@ -79,10 +111,12 @@ class SettingsTest extends TestCase {
 	 *
 	 * @dataProvider data_provider_invalid_settings
 	 * 
-	 * @param array $settings The settings to test with.
+	 * @param array  $settings    The settings to test with.
+	 * @param string $error_code  The expected error code.
+	 * @param bool   $should_validate Whether validation should be performed.
 	 * @throws \ReflectionException If reflection fails.
 	 */
-	public function test_settings_are_saved( array $settings ): void {
+	public function test_settings_are_saved( array $settings, string $error_code, bool $should_validate ): void {
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
@@ -99,5 +133,13 @@ class SettingsTest extends TestCase {
 		);
 
 		Assert::assertSame( $settings, $saved_settings );
+	}
+
+	/**
+	 * Clean up after each test.
+	 */
+	public function tear_down(): void {
+		parent::tear_down();
+		Mockery::close();
 	}
 } 
