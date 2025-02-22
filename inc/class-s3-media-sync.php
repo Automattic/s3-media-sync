@@ -4,6 +4,7 @@ class S3_Media_Sync {
 
 	private static $instance;
 	private $settings;
+	private $s3;
 
 	/**
 	 *
