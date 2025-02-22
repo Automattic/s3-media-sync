@@ -1,29 +1,26 @@
 <?php
 /**
- * Base integration test case
+ * Base test case for all S3 Media Sync tests
  *
  * @package S3_Media_Sync
  */
 
-namespace S3_Media_Sync\Tests\Integration;
+namespace S3_Media_Sync\Tests;
 
-use S3_Media_Sync;
-use S3_Media_Sync\Tests\Tests_Reflection;
-use Yoast\WPTestUtils\WPIntegration\TestCase;
+use Yoast\WPTestUtils\WPIntegration\TestCase as WPTestCase;
 
 /**
- * Abstract base class for all integration test case implementations.
+ * Abstract base class for all test case implementations.
  */
-abstract class WP_Integration_Test_Case extends TestCase {
-
+abstract class TestCase extends WPTestCase {
 	use Tests_Reflection;
 
 	/**
 	 * Holds a reference to the S3_Media_Sync instance used for testing.
 	 *
-	 * @var S3_Media_Sync $s3_media_sync The S3_Media_Sync instance.
+	 * @var \S3_Media_Sync $s3_media_sync The S3_Media_Sync instance.
 	 */
-	public S3_Media_Sync $s3_media_sync;
+	protected \S3_Media_Sync $s3_media_sync;
 
 	/**
 	 * Prepares the test environment before each test.
@@ -37,10 +34,10 @@ abstract class WP_Integration_Test_Case extends TestCase {
 		// Ensure the AWS SDK can be loaded.
 		if ( ! class_exists( '\\Aws\\S3\\S3Client' ) ) {
 			// Require AWS Autoloader file.
-			require_once dirname( __FILE__, 3 ) . '/vendor/autoload.php';
+			require_once dirname( __FILE__, 2 ) . '/vendor/autoload.php';
 		}
 
-		$this->s3_media_sync = S3_Media_Sync::init();
+		$this->s3_media_sync = \S3_Media_Sync::init();
 
 		remove_action( 'plugins_loaded', [ $this->s3_media_sync, 's3_media_sync_setup' ] );
 	}
@@ -48,7 +45,7 @@ abstract class WP_Integration_Test_Case extends TestCase {
 	/**
 	 * Nullify the S3_Media_Sync instance after each test.
 	 *
-	 * @throws \ReflectionException
+	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function tear_down(): void {
 		parent::tear_down();
@@ -60,4 +57,4 @@ abstract class WP_Integration_Test_Case extends TestCase {
 			null
 		);
 	}
-}
+} 

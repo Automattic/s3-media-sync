@@ -51,7 +51,6 @@ if ( $plugin_slug_key && 'integration' === $plugin_slug_argv[ $plugin_slug_key +
 
 	// Additional necessary requires.
 	require_once __DIR__ . '/trait-tests-reflection.php';
-	require_once __DIR__ . '/integration/class-wp-integration-test-case.php';
 } else {
 	// Unit testing bootstrap goes here.
 }

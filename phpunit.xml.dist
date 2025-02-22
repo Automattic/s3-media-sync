@@ -35,7 +35,7 @@
 	</coverage>
 	<testsuites>
 		<testsuite name="integration">
-			<directory suffix=".php">tests/integration</directory>
+			<directory suffix="Test.php">tests/Integration</directory>
 		</testsuite>
 	</testsuites>
 	<groups>

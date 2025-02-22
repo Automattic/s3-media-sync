@@ -8,7 +8,8 @@
 namespace S3_Media_Sync\Tests\Integration;
 
 use S3_Media_Sync;
-use PHPUnit\Framework\TestCase;
+use S3_Media_Sync\Tests\TestCase;
+use PHPUnit\Framework\Assert;
 
 /**
  * Test case for S3 Media Sync hooks registration and functionality.
@@ -17,7 +18,7 @@ use PHPUnit\Framework\TestCase;
  * @group hooks
  * @covers S3_Media_Sync
  */
-class Hooks_Test extends WP_Integration_Test_Case {
+class HooksTest extends TestCase {
 
 	/**
 	 * Test data for settings scenarios.
@@ -34,7 +35,7 @@ class Hooks_Test extends WP_Integration_Test_Case {
 					'region'     => 'test-region',
 					'object_acl' => 'public-read',
 				],
-				'assertIsInt',
+				true,
 			],
 			'incomplete settings' => [
 				[
@@ -44,7 +45,7 @@ class Hooks_Test extends WP_Integration_Test_Case {
 					'region'     => '',
 					'object_acl' => 'public-read',
 				],
-				'assertFalse',
+				false,
 			],
 		];
 	}
@@ -52,13 +53,24 @@ class Hooks_Test extends WP_Integration_Test_Case {
 	/**
 	 * Helper method for checking media sync hooks are registered.
 	 *
-	 * @param string $assertion The assertion to use.
+	 * @param bool $should_be_registered Whether the hooks should be registered.
 	 */
-	private function assert_media_syncs_hooks_registered( string $assertion ): void {
-		$method = 'TestCase::' . $assertion;
-		$method( has_filter( 'wp_handle_upload', [ $this->s3_media_sync, 'add_attachment_to_s3' ] ) );
-		$method( has_action( 'delete_attachment', [ $this->s3_media_sync, 'delete_attachment_from_s3' ] ) );
-		$method( has_filter( 'wp_save_image_editor_file', [ $this->s3_media_sync, 'add_updated_attachment_to_s3' ] ) );
+	private function assert_media_syncs_hooks_registered( bool $should_be_registered ): void {
+		$hooks = [
+			'wp_handle_upload'           => 'add_attachment_to_s3',
+			'delete_attachment'          => 'delete_attachment_from_s3',
+			'wp_save_image_editor_file' => 'add_updated_attachment_to_s3',
+		];
+
+		foreach ( $hooks as $hook => $callback ) {
+			$priority = has_filter( $hook, [ $this->s3_media_sync, $callback ] );
+
+			if ( $should_be_registered ) {
+				Assert::assertIsInt( $priority, "Hook '$hook' should be registered" );
+			} else {
+				Assert::assertFalse( $priority, "Hook '$hook' should not be registered" );
+			}
+		}
 	}
 
 	/**
@@ -66,12 +78,12 @@ class Hooks_Test extends WP_Integration_Test_Case {
 	 *
 	 * @dataProvider data_provider_settings
 	 * 
-	 * @param array  $settings  The settings to test with.
-	 * @param string $assertion The assertion method to use.
+	 * @param array $settings            The settings to test with.
+	 * @param bool  $should_be_registered Whether the hooks should be registered.
 	 * @throws \ReflectionException If reflection fails.
 	 */
-	public function test_media_syncs_hooks_registration( array $settings, string $assertion ): void {
-		parent::set_private_property(
+	public function test_media_syncs_hooks_registration( array $settings, bool $should_be_registered ): void {
+		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
@@ -80,6 +92,6 @@ class Hooks_Test extends WP_Integration_Test_Case {
 
 		$this->s3_media_sync->setup();
 
-		$this->assert_media_syncs_hooks_registered( $assertion );
+		$this->assert_media_syncs_hooks_registered( $should_be_registered );
 	}
 } 

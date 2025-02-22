@@ -8,7 +8,8 @@
 namespace S3_Media_Sync\Tests\Integration;
 
 use S3_Media_Sync;
-use PHPUnit\Framework\TestCase;
+use S3_Media_Sync\Tests\TestCase;
+use PHPUnit\Framework\Assert;
 
 /**
  * Test case for S3 Media Sync stream wrapper functionality.
@@ -17,7 +18,7 @@ use PHPUnit\Framework\TestCase;
  * @group stream-wrapper
  * @covers S3_Media_Sync
  */
-class Stream_Wrapper_Test extends WP_Integration_Test_Case {
+class StreamWrapperTest extends TestCase {
 
 	/**
 	 * Test data for stream wrapper registration scenarios.
@@ -47,7 +48,7 @@ class Stream_Wrapper_Test extends WP_Integration_Test_Case {
 	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_stream_wrapper_registered( array $settings ): void {
-		parent::set_private_property(
+		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
@@ -56,7 +57,7 @@ class Stream_Wrapper_Test extends WP_Integration_Test_Case {
 
 		$this->s3_media_sync->setup();
 
-		TestCase::assertContains( 's3', stream_get_wrappers() );
+		Assert::assertContains( 's3', stream_get_wrappers() );
 	}
 
 	/**
@@ -68,6 +69,6 @@ class Stream_Wrapper_Test extends WP_Integration_Test_Case {
 	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_stream_wrapper_functionality( array $settings ): void {
-		TestCase::markTestIncomplete( 'This test needs to be implemented.' );
+		Assert::markTestIncomplete( 'This test needs to be implemented.' );
 	}
 } 

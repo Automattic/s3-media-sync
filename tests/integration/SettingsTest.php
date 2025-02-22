@@ -8,7 +8,8 @@
 namespace S3_Media_Sync\Tests\Integration;
 
 use S3_Media_Sync;
-use PHPUnit\Framework\TestCase;
+use S3_Media_Sync\Tests\TestCase;
+use PHPUnit\Framework\Assert;
 
 /**
  * Test case for S3 Media Sync settings validation.
@@ -17,7 +18,7 @@ use PHPUnit\Framework\TestCase;
  * @group settings
  * @covers S3_Media_Sync
  */
-class Settings_Test extends WP_Integration_Test_Case {
+class SettingsTest extends TestCase {
 
 	/**
 	 * Test data for settings validation scenarios.
@@ -59,7 +60,7 @@ class Settings_Test extends WP_Integration_Test_Case {
 	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_invalid_settings_cause_admin_error_notice( array $settings, string $error_code ): void {
-		parent::set_private_property(
+		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
@@ -70,7 +71,7 @@ class Settings_Test extends WP_Integration_Test_Case {
 		$this->s3_media_sync->s3_media_sync_settings_validation( $settings );
 
 		$admin_error_codes = wp_list_pluck( get_settings_errors(), 'code' );
-		TestCase::assertContains( $error_code, $admin_error_codes );
+		Assert::assertContains( $error_code, $admin_error_codes );
 	}
 
 	/**
@@ -82,7 +83,7 @@ class Settings_Test extends WP_Integration_Test_Case {
 	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_settings_are_saved( array $settings ): void {
-		parent::set_private_property(
+		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
@@ -91,12 +92,12 @@ class Settings_Test extends WP_Integration_Test_Case {
 
 		$this->s3_media_sync->setup();
 
-		$saved_settings = parent::get_private_property(
+		$saved_settings = $this::get_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings'
 		);
 
-		TestCase::assertSame( $settings, $saved_settings );
+		Assert::assertSame( $settings, $saved_settings );
 	}
 } 
