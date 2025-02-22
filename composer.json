@@ -23,9 +23,16 @@
 		}
 	},
 	"scripts": {
-		"test-integration": "./vendor/bin/phpunit --testsuite integration",
+		"prepare-ci": [
+			"bash bin/install-wp-tests.sh wordpress_test root root localhost"
+		],
 		"test": [
 			"@test-integration"
+		],
+		"test-integration": "./vendor/bin/phpunit --testsuite integration",
+		"test-ms": [
+			"@putenv WP_MULTISITE=1",
+			"@composer test"
 		],
 		"coverage": [
 			"@putenv XDEBUG_MODE=coverage",
