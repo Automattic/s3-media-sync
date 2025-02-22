@@ -43,7 +43,7 @@ class S3_Media_Sync {
 		add_action( 'admin_menu', [ $this, 'register_menu_settings' ] );
 		add_action( 'admin_init', [ $this, 'settings_screeen_init' ] );
 
-		if ( ! empty( $this->settings ) ) {
+		if ( $this->has_required_settings() ) {
 			// Perform on-the-fly media syncs by hooking into these actions
 			add_filter( 'wp_handle_upload', [ $this, 'add_attachment_to_s3' ], 10, 2 );
 			add_action( 'delete_attachment', [ $this, 'delete_attachment_from_s3' ], 10, 1 );
@@ -113,12 +113,7 @@ class S3_Media_Sync {
 	 */
 	public function register_stream_wrapper() {
 		// Only proceed to register the stream wrapper if all required fields are set
-		if (
-		   empty( $this->settings['bucket'] ) ||
-		   empty( $this->settings['key'] ) ||
-		   empty( $this->settings['secret'] ) ||
-		   empty( $this->settings['region'] )
-		) {
+		if ( ! $this->has_required_settings() ) {
 			return;
 		}
 
@@ -148,12 +143,7 @@ class S3_Media_Sync {
 	 */
 	function s3_media_sync_settings_validation( $input ) {
 		// Only proceed to validate the bucket if all necessary settings are set
-		if (
-		   empty( $this->settings['bucket'] ) ||
-		   empty( $this->settings['key'] ) ||
-		   empty( $this->settings['secret'] ) ||
-		   empty( $this->settings['region'] )
-		) {
+		if ( ! $this->has_required_settings() ) {
 			return $input;
 		}
 
@@ -327,5 +317,22 @@ class S3_Media_Sync {
 		$this->s3 = Aws\S3\S3Client::factory( $params );
 
 		return $this->s3;
+	}
+
+	/**
+	 * Check if all required s3 bucket settings are set.
+	 *
+	 * @return bool
+	 */
+	private function has_required_settings() {
+		$required_keys = [ 'bucket', 'key', 'secret', 'region' ];
+
+		foreach ( $required_keys as $key ) {
+			if ( empty( $this->settings[ $key ] ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
