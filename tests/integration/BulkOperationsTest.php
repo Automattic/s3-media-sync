@@ -100,10 +100,17 @@ class BulkOperationsTest extends TestCase {
 
 		$this->s3_media_sync->setup();
 
+		$test_files = [];
+
 		// Create temporary test files and process them.
 		foreach ( $test_data['files'] as $file ) {
-			// Create the test file
-			$test_file_path = $this->create_temp_file($file['name']);
+			// Create the test file with unique content
+			$test_content = 'Test content for ' . $file['name'];
+			$test_file_path = $this->create_temp_file($file['name'], $test_content);
+			$test_files[$file['name']] = [
+				'path' => $test_file_path,
+				'content' => $test_content
+			];
 
 			// Simulate WordPress upload
 			$upload = $this->create_test_upload($test_file_path, $file['type']);
@@ -114,8 +121,83 @@ class BulkOperationsTest extends TestCase {
 			// Verify the upload was processed
 			Assert::assertSame( $upload, $result, 'Upload data should be returned unchanged for ' . $file['name'] );
 
-			// Clean up
-			unlink( $test_file_path );
+			// Verify the file exists in S3
+			$s3_path = 's3://' . $this->default_settings['bucket'] . '/wp-content/uploads' . str_replace(wp_get_upload_dir()['baseurl'], '', $upload['url']);
+			Assert::assertTrue(file_exists($s3_path), 'File should exist in S3: ' . $file['name']);
+
+			// Verify the content was uploaded correctly
+			$s3_content = file_get_contents($s3_path);
+			Assert::assertSame($test_content, $s3_content, 'S3 content should match for ' . $file['name']);
+		}
+
+		// Clean up test files
+		foreach ($test_files as $file) {
+			unlink($file['path']);
+		}
+	}
+
+	/**
+	 * Test bulk upload error handling.
+	 *
+	 * @dataProvider data_provider_bulk_operations
+	 */
+	public function test_bulk_upload_error_handling( array $test_data ): void {
+		// Set up the plugin with mock client that will fail uploads.
+		$this::set_private_property(
+			$this->s3_media_sync::class,
+			$this->s3_media_sync,
+			'settings',
+			$this->default_settings
+		);
+
+		$s3_client = $this->create_mock_s3_client([
+			'error_code' => 'AccessDenied',
+			'error_message' => 'Access Denied',
+			'should_succeed' => false
+		]);
+
+		$this::set_private_property(
+			$this->s3_media_sync::class,
+			$this->s3_media_sync,
+			's3',
+			$s3_client
+		);
+
+		$this->s3_media_sync->setup();
+
+		$test_files = [];
+
+		// Process each file and verify error handling
+		foreach ( $test_data['files'] as $file ) {
+			// Create the test file
+			$test_file_path = $this->create_temp_file($file['name']);
+			$test_files[] = $test_file_path;
+
+			// Simulate WordPress upload
+			$upload = $this->create_test_upload($test_file_path, $file['type']);
+
+			// Test the upload sync should fail
+			$error_triggered = false;
+			set_error_handler(function($errno, $errstr) use (&$error_triggered) {
+				$error_triggered = true;
+				Assert::assertStringContainsString('Failed to open stream', $errstr);
+				Assert::assertStringContainsString('Access Denied', $errstr);
+				return true;
+			});
+
+			try {
+				$this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
+			} catch (\Exception $e) {
+				// Expected
+			}
+
+			restore_error_handler();
+			Assert::assertTrue($error_triggered, 'Expected PHP error was not triggered for ' . $file['name']);
+		}
+
+		// Clean up test files
+		foreach ($test_files as $file_path) {
+			unlink($file_path);
 		}
 	}
 

@@ -108,39 +108,9 @@ class ImageEditorTest extends TestCase {
 
 		// Create a mock image editor.
 		$mock_image_editor = Mockery::mock( WP_Image_Editor::class );
-
-		// Mock the specific operation
-		switch ( $test_data['operation'] ) {
-			case 'crop':
-				$mock_image_editor->shouldReceive( 'crop' )
-					->with(
-						$test_data['params']['x'],
-						$test_data['params']['y'],
-						$test_data['params']['width'],
-						$test_data['params']['height']
-					)
-					->once()
-					->andReturn( true );
-				break;
-			case 'resize':
-				$mock_image_editor->shouldReceive( 'resize' )
-					->with(
-						$test_data['params']['width'],
-						$test_data['params']['height']
-					)
-					->once()
-					->andReturn( true );
-				break;
-			case 'rotate':
-				$mock_image_editor->shouldReceive( 'rotate' )
-					->with( $test_data['params']['angle'] )
-					->once()
-					->andReturn( true );
-				break;
-		}
+		$edited_content = $test_content . ' (edited with ' . $test_data['operation'] . ')';
 
 		// Mock the save operation with edited content
-		$edited_content = $test_content . ' (edited with ' . $test_data['operation'] . ')';
 		$mock_image_editor->shouldReceive( 'save' )
 			->with( $test_file_path, $test_data['mime_type'] )
 			->andReturnUsing(function() use ($test_file_path, $test_data, $edited_content) {
@@ -154,9 +124,19 @@ class ImageEditorTest extends TestCase {
 				];
 			});
 
-		// Perform the image operation before syncing
+		// Mock and execute the specific operation
 		switch ( $test_data['operation'] ) {
 			case 'crop':
+				$mock_image_editor->shouldReceive( 'crop' )
+					->with(
+						$test_data['params']['x'],
+						$test_data['params']['y'],
+						$test_data['params']['width'],
+						$test_data['params']['height']
+					)
+					->once()
+					->andReturn( true )
+					->ordered();
 				$mock_image_editor->crop(
 					$test_data['params']['x'],
 					$test_data['params']['y'],
@@ -165,12 +145,25 @@ class ImageEditorTest extends TestCase {
 				);
 				break;
 			case 'resize':
+				$mock_image_editor->shouldReceive( 'resize' )
+					->with(
+						$test_data['params']['width'],
+						$test_data['params']['height']
+					)
+					->once()
+					->andReturn( true )
+					->ordered();
 				$mock_image_editor->resize(
 					$test_data['params']['width'],
 					$test_data['params']['height']
 				);
 				break;
 			case 'rotate':
+				$mock_image_editor->shouldReceive( 'rotate' )
+					->with( $test_data['params']['angle'] )
+					->once()
+					->andReturn( true )
+					->ordered();
 				$mock_image_editor->rotate( $test_data['params']['angle'] );
 				break;
 		}
