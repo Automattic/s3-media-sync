@@ -37,26 +37,14 @@ class ErrorHandlingTest extends TestCase {
 		parent::set_up();
 		
 		$this->s3_media_sync = new S3_Media_Sync();
-		$this->settings = [
-			'bucket' => 'test-bucket',
-			'key' => 'test-key',
-			'secret' => 'test-secret',
-			'region' => 'test-region',
-			'object_acl' => 'public-read'
-		];
-		
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
-			$this->settings
+			$this->default_settings
 		);
 		
-		$this->test_file = wp_tempnam();
-		if ($this->test_file === false) {
-			Assert::fail('Failed to create temporary file');
-		}
-		file_put_contents($this->test_file, 'test content');
+		$this->test_file = $this->create_temp_file();
 	}
 
 	/**
@@ -82,117 +70,14 @@ class ErrorHandlingTest extends TestCase {
 	}
 
 	/**
-	 * Creates a mock command that supports array access.
-	 *
-	 * @param string $error_code The AWS error code.
-	 * @param string $error_message The error message.
-	 * @return \Mockery\MockInterface
-	 */
-	private function create_mock_command($error_code, $error_message) {
-		$command = Mockery::mock(CommandInterface::class);
-		$command_data = [];
-		
-		$command->shouldReceive('offsetGet')
-			->with(Mockery::any())
-			->andReturnUsing(function($key) use (&$command_data) {
-				return $command_data[$key] ?? null;
-			});
-		
-		$command->shouldReceive('offsetSet')
-			->with(Mockery::any(), Mockery::any())
-			->andReturnUsing(function($key, $value) use (&$command_data) {
-				$command_data[$key] = $value;
-			});
-		
-		$command->shouldReceive('offsetExists')
-			->with(Mockery::any())
-			->andReturnUsing(function($key) use (&$command_data) {
-				return isset($command_data[$key]);
-			});
-		
-		$command->shouldReceive('offsetUnset')
-			->with(Mockery::any())
-			->andReturnUsing(function($key) use (&$command_data) {
-				unset($command_data[$key]);
-			});
-
-		return $command;
-	}
-
-	/**
-	 * Creates a mock S3 client with error handling.
-	 *
-	 * @param string $error_code The AWS error code.
-	 * @param string $error_message The error message.
-	 * @return S3Client
-	 */
-	private function create_mock_s3_client($error_code, $error_message) {
-		$command = $this->create_mock_command($error_code, $error_message);
-
-		// Create a mock handler that always throws the specified exception
-		$handler = function ($command, $request) use ($error_code, $error_message) {
-			$response = new Response(
-				400,
-				[
-					'X-Amz-Request-Id' => '1234567890ABCDEF',
-					'Content-Type' => 'application/xml'
-				],
-				sprintf(
-					'<?xml version="1.0" encoding="UTF-8"?>
-					<Error>
-						<Code>%s</Code>
-						<Message>%s</Message>
-						<RequestId>1234567890ABCDEF</RequestId>
-						<HostId>host-id</HostId>
-					</Error>',
-					$error_code,
-					$error_message
-				)
-			);
-
-			$exception = new S3Exception(
-				sprintf('[%s] %s', $error_code, $error_message),
-				$command,
-				[
-					'response' => $response,
-					'code' => $error_code,
-					'message' => $error_message,
-					'type' => 'client',
-					'request_id' => '1234567890ABCDEF',
-					'aws' => [
-						'code' => $error_code,
-						'type' => 'client',
-						'message' => $error_message,
-						'request_id' => '1234567890ABCDEF'
-					]
-				]
-			);
-
-			return Promise\Create::rejectionFor($exception);
-		};
-
-		// Create the S3 client with the mock handler
-		$s3_client = new S3Client([
-			'version' => 'latest',
-			'region' => $this->settings['region'],
-			'credentials' => [
-				'key' => $this->settings['key'],
-				'secret' => $this->settings['secret']
-			],
-			'handler' => $handler,
-			'use_aws_shared_config_files' => false,
-			'endpoint' => 'http://localhost',
-			'validate' => false
-		]);
-
-		return $s3_client;
-	}
-
-	/**
 	 * @dataProvider data_provider_error_scenarios
 	 */
 	public function test_error_handling_during_operations($error_code, $error_message) {
-		$s3_client = $this->create_mock_s3_client($error_code, $error_message);
+		$s3_client = $this->create_mock_s3_client([
+			'error_code' => $error_code,
+			'error_message' => $error_message,
+			'should_succeed' => false
+		]);
 
 		$this::set_private_property(
 			$this->s3_media_sync::class,
@@ -204,20 +89,12 @@ class ErrorHandlingTest extends TestCase {
 		// Register the stream wrapper
 		$this->s3_media_sync->register_stream_wrapper();
 
-		$upload = [
-			'file' => $this->test_file,
-			'url' => 'http://example.com/test.jpg',
-			'type' => 'image/jpeg',
-			'path' => $this->test_file,
-			'subdir' => '',
-			'basedir' => dirname($this->test_file),
-			'baseurl' => 'http://example.com'
-		];
+		$upload = $this->create_test_upload($this->test_file);
 		
 		$exception_thrown = false;
 		try {
 			$this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
-		} catch (S3Exception $e) {
+		} catch (\Aws\S3\Exception\S3Exception $e) {
 			$exception_thrown = true;
 			Assert::assertSame($error_code, $e->getAwsErrorCode());
 			Assert::assertStringContainsString($error_message, $e->getMessage());
@@ -230,7 +107,11 @@ class ErrorHandlingTest extends TestCase {
 	 * @dataProvider data_provider_error_scenarios
 	 */
 	public function test_stream_wrapper_error_handling($error_code, $error_message) {
-		$s3_client = $this->create_mock_s3_client($error_code, $error_message);
+		$s3_client = $this->create_mock_s3_client([
+			'error_code' => $error_code,
+			'error_message' => $error_message,
+			'should_succeed' => false
+		]);
 
 		$this::set_private_property(
 			$this->s3_media_sync::class,
@@ -242,7 +123,7 @@ class ErrorHandlingTest extends TestCase {
 		// Register the stream wrapper
 		$this->s3_media_sync->register_stream_wrapper();
 
-		$s3_path = 's3://' . $this->settings['bucket'] . '/test.txt';
+		$s3_path = 's3://' . $this->default_settings['bucket'] . '/test.txt';
 		
 		$error_triggered = false;
 		set_error_handler(function($errno, $errstr) use (&$error_triggered, $error_message) {

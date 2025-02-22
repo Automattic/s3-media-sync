@@ -8,6 +8,14 @@
 namespace S3_Media_Sync\Tests;
 
 use Yoast\WPTestUtils\WPIntegration\TestCase as WPTestCase;
+use Aws\S3\S3Client;
+use Aws\CommandInterface;
+use Aws\Command;
+use Aws\Result;
+use GuzzleHttp\Promise;
+use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\Utils;
+use Mockery;
 
 /**
  * Abstract base class for all test case implementations.
@@ -23,40 +31,176 @@ abstract class TestCase extends WPTestCase {
 	protected \S3_Media_Sync $s3_media_sync;
 
 	/**
-	 * Creates a test file in the uploads directory.
+	 * Default test settings.
 	 *
-	 * @param string $filename The name of the file to create.
-	 * @return string The path to the created file.
+	 * @var array
 	 */
-	protected function create_test_file(string $filename): string {
-		$upload_dir = wp_upload_dir();
-		$test_file_path = $upload_dir['path'] . '/' . $filename;
-		file_put_contents($test_file_path, 'Test content for ' . $filename);
-		return $test_file_path;
+	protected $default_settings = [
+		'bucket'     => 'test-bucket',
+		'key'        => 'test-key',
+		'secret'     => 'test-secret',
+		'region'     => 'test-region',
+		'object_acl' => 'public-read',
+	];
+
+	/**
+	 * Creates a mock S3 client for testing.
+	 *
+	 * @param array $options Options for configuring the mock client:
+	 *                      - error_code: AWS error code to simulate
+	 *                      - error_message: Error message to include
+	 *                      - should_succeed: Whether operations should succeed
+	 * @return S3Client
+	 */
+	protected function create_mock_s3_client(array $options = []): S3Client {
+		$options = array_merge([
+			'error_code' => null,
+			'error_message' => null,
+			'should_succeed' => true,
+		], $options);
+
+		// Create a mock handler
+		$handler = function ($command, $request) use ($options) {
+			if (!$options['should_succeed'] && $options['error_code']) {
+				$response = new Response(
+					400,
+					[
+						'X-Amz-Request-Id' => '1234567890ABCDEF',
+						'Content-Type' => 'application/xml'
+					],
+					sprintf(
+						'<?xml version="1.0" encoding="UTF-8"?>
+						<Error>
+							<Code>%s</Code>
+							<Message>%s</Message>
+							<RequestId>1234567890ABCDEF</RequestId>
+							<HostId>host-id</HostId>
+						</Error>',
+						$options['error_code'],
+						$options['error_message']
+					)
+				);
+
+				$exception = new \Aws\S3\Exception\S3Exception(
+					sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+					$command,
+					[
+						'response' => $response,
+						'code' => $options['error_code'],
+						'message' => $options['error_message'],
+						'type' => 'client',
+						'request_id' => '1234567890ABCDEF',
+						'aws' => [
+							'code' => $options['error_code'],
+							'type' => 'client',
+							'message' => $options['error_message'],
+							'request_id' => '1234567890ABCDEF'
+						]
+					]
+				);
+
+				return Promise\Create::rejectionFor($exception);
+			}
+
+			// For successful operations
+			return Promise\Create::promiseFor(
+				new Result(['Body' => Utils::streamFor('Test content')])
+			);
+		};
+
+		// Create the S3 client with the mock handler
+		return new S3Client([
+			'version' => 'latest',
+			'region' => $this->default_settings['region'],
+			'credentials' => [
+				'key' => $this->default_settings['key'],
+				'secret' => $this->default_settings['secret']
+			],
+			'handler' => $handler,
+			'use_aws_shared_config_files' => false,
+			'endpoint' => 'http://localhost',
+			'validate' => false
+		]);
 	}
 
 	/**
-	 * Creates a test attachment in WordPress.
+	 * Creates a mock command that supports array access.
 	 *
-	 * @param string $file_path The path to the file to create an attachment for.
-	 * @return int The ID of the created attachment.
+	 * @param array $data Initial command data.
+	 * @return \Mockery\MockInterface
 	 */
-	protected function create_test_attachment(string $file_path): int {
-		$attachment = [
-			'post_title' => basename($file_path),
-			'post_content' => '',
-			'post_status' => 'publish',
-			'post_mime_type' => 'image/jpeg'
-		];
+	protected function create_mock_command(array $data = []): \Mockery\MockInterface {
+		$command = Mockery::mock(CommandInterface::class);
+		$command_data = $data;
+		
+		$command->shouldReceive('offsetGet')
+			->with(Mockery::any())
+			->andReturnUsing(function($key) use (&$command_data) {
+				return $command_data[$key] ?? null;
+			});
+		
+		$command->shouldReceive('offsetSet')
+			->with(Mockery::any(), Mockery::any())
+			->andReturnUsing(function($key, $value) use (&$command_data) {
+				$command_data[$key] = $value;
+			});
+		
+		$command->shouldReceive('offsetExists')
+			->with(Mockery::any())
+			->andReturnUsing(function($key) use (&$command_data) {
+				return isset($command_data[$key]);
+			});
+		
+		$command->shouldReceive('offsetUnset')
+			->with(Mockery::any())
+			->andReturnUsing(function($key) use (&$command_data) {
+				unset($command_data[$key]);
+			});
 
-		return wp_insert_attachment($attachment, $file_path);
+		return $command;
+	}
+
+	/**
+	 * Creates a temporary test file with optional content.
+	 *
+	 * @param string $filename Optional filename. If not provided, a random name will be used.
+	 * @param string $content Optional content for the file.
+	 * @return string The path to the created file.
+	 */
+	protected function create_temp_file(?string $filename = null, string $content = 'Test content'): string {
+		if ($filename === null) {
+			$file_path = wp_tempnam();
+		} else {
+			$upload_dir = wp_upload_dir();
+			$file_path = $upload_dir['path'] . '/' . $filename;
+		}
+
+		file_put_contents($file_path, $content);
+		return $file_path;
+	}
+
+	/**
+	 * Creates a test upload array for simulating WordPress uploads.
+	 *
+	 * @param string $file_path The path to the file.
+	 * @param string $mime_type The mime type of the file.
+	 * @return array The upload array.
+	 */
+	protected function create_test_upload(string $file_path, string $mime_type = 'image/jpeg'): array {
+		$upload_dir = wp_upload_dir();
+		return [
+			'file' => $file_path,
+			'url' => str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $file_path),
+			'type' => $mime_type,
+			'path' => $file_path,
+			'subdir' => '',
+			'basedir' => dirname($file_path),
+			'baseurl' => $upload_dir['baseurl']
+		];
 	}
 
 	/**
 	 * Prepares the test environment before each test.
-	 *
-	 * The plugin's default s3_media_sync_setup instantiation is removed
-	 * so the setup method can be invoked manually within individual tests.
 	 */
 	public function set_up(): void {
 		parent::set_up();
@@ -86,5 +230,7 @@ abstract class TestCase extends WPTestCase {
 			'instance',
 			null
 		);
+
+		Mockery::close();
 	}
 } 

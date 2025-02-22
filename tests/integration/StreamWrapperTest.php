@@ -16,6 +16,8 @@ use Aws\Result;
 use Aws\Command;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Utils;
+use Aws\S3\Exception\S3Exception;
+use GuzzleHttp\Promise;
 
 /**
  * Test case for S3 Media Sync stream wrapper functionality.
@@ -76,100 +78,6 @@ class StreamWrapperTest extends TestCase {
 	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_stream_wrapper_functionality( array $settings ): void {
-		// Create a mock command.
-		$mock_command = Mockery::mock( Command::class );
-		$mock_command->shouldReceive( 'offsetGet' )
-			->with( Mockery::any() )
-			->andReturnUsing( function ( $offset ) {
-				$data = [
-					'Bucket' => 'test-bucket',
-					'Key'    => 'test.txt',
-					'Body'   => 'Test content',
-				];
-				return $data[ $offset ] ?? null;
-			} );
-		$mock_command->shouldReceive( 'offsetExists' )
-			->with( Mockery::any() )
-			->andReturnUsing( function ( $offset ) {
-				$data = [
-					'Bucket' => 'test-bucket',
-					'Key'    => 'test.txt',
-					'Body'   => 'Test content',
-				];
-				return isset( $data[ $offset ] );
-			} );
-		$mock_command->shouldReceive( 'offsetSet' )
-			->with( Mockery::any(), Mockery::any() );
-		$mock_command->shouldReceive( 'offsetUnset' )
-			->with( Mockery::any() );
-
-		// Create a mock S3 client.
-		$mock_s3_client = Mockery::mock( S3Client::class );
-
-		// Mock bucket existence check.
-		$mock_s3_client->shouldReceive( 'doesBucketExist' )
-			->with( $settings['bucket'] )
-			->andReturn( true );
-
-		// Mock putObject for writing.
-		$mock_s3_client->shouldReceive( 'putObject' )
-			->withArgs( function ( $args ) use ( $settings ) {
-				return $args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] ) &&
-					isset( $args['Body'] );
-			} )
-			->andReturn( new Result( [] ) );
-
-		// Mock getObject for reading.
-		$mock_s3_client->shouldReceive( 'getObject' )
-			->withArgs( function ( $args ) use ( $settings ) {
-				return $args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] );
-			} )
-			->andReturn( new Result( [
-				'Body' => \GuzzleHttp\Psr7\Utils::streamFor( 'Test content' ),
-			] ) );
-
-		// Mock headObject for file existence check.
-		$mock_s3_client->shouldReceive( 'headObject' )
-			->withArgs( function ( $args ) use ( $settings ) {
-				return $args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] );
-			} )
-			->andReturnUsing( function () use ( &$file_exists ) {
-				if ( isset( $file_exists ) && ! $file_exists ) {
-					throw new \Aws\S3\Exception\S3Exception( 'File not found', new Command( 'headObject' ) );
-				}
-				return new Result( [] );
-			} );
-
-		// Mock deleteObject for file deletion.
-		$mock_s3_client->shouldReceive( 'deleteObject' )
-			->withArgs( function ( $args ) use ( $settings ) {
-				return $args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] );
-			} )
-			->andReturnUsing( function () use ( &$file_exists ) {
-				$file_exists = false;
-				return new Result( [] );
-			} );
-
-		// Mock getCommand for internal AWS SDK usage.
-		$mock_s3_client->shouldReceive( 'getCommand' )
-			->withArgs( function ( $command, $args ) use ( $settings ) {
-				return in_array( $command, [ 'PutObject', 'GetObject', 'HeadObject', 'DeleteObject' ], true ) &&
-					$args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] );
-			} )
-			->andReturn( $mock_command );
-
-		// Mock execute method for internal AWS SDK usage.
-		$mock_s3_client->shouldReceive( 'execute' )
-			->with( Mockery::type( Command::class ) )
-			->andReturn( new Result( [
-				'Body' => \GuzzleHttp\Psr7\Utils::streamFor( 'Test content' ),
-			] ) );
-
 		// Set up the plugin with mock client.
 		$this::set_private_property(
 			$this->s3_media_sync::class,
@@ -178,11 +86,50 @@ class StreamWrapperTest extends TestCase {
 			$settings
 		);
 
+		// Track file existence state
+		$file_exists = false;
+
+		// Create a custom handler for the mock S3 client
+		$handler = function ($command, $request) use (&$file_exists) {
+			if ($command->getName() === 'DeleteObject') {
+				$file_exists = false;
+				return Promise\Create::promiseFor(new Result([]));
+			} elseif ($command->getName() === 'HeadObject') {
+				if (!$file_exists) {
+					return Promise\Create::rejectionFor(
+						new S3Exception(
+							'Not Found',
+							$command,
+							['code' => 'NoSuchKey']
+						)
+					);
+				}
+				return Promise\Create::promiseFor(new Result(['ContentLength' => 11]));
+			} elseif ($command->getName() === 'PutObject') {
+				$file_exists = true;
+				return Promise\Create::promiseFor(new Result([]));
+			}
+			return Promise\Create::promiseFor(new Result(['Body' => Utils::streamFor('Test content')]));
+		};
+
+		$s3_client = new S3Client([
+			'version' => 'latest',
+			'region' => $settings['region'],
+			'credentials' => [
+				'key' => $settings['key'],
+				'secret' => $settings['secret']
+			],
+			'handler' => $handler,
+			'use_aws_shared_config_files' => false,
+			'endpoint' => 'http://localhost',
+			'validate' => false
+		]);
+
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			's3',
-			$mock_s3_client
+			$s3_client
 		);
 
 		$this->s3_media_sync->setup();

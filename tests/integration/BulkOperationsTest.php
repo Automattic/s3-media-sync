@@ -82,59 +82,20 @@ class BulkOperationsTest extends TestCase {
 	 * @param array $test_data The test data.
 	 */
 	public function test_bulk_upload_syncs_to_s3( array $test_data ): void {
-		$settings = [
-			'bucket'     => 'test-bucket',
-			'key'        => 'test-key',
-			'secret'     => 'test-secret',
-			'region'     => 'test-region',
-			'object_acl' => 'public-read',
-		];
-
-		// Create a mock S3 client.
-		$mock_s3_client = Mockery::mock( S3Client::class );
-
-		// Mock bucket existence check.
-		$mock_s3_client->shouldReceive( 'doesBucketExist' )
-			->with( $settings['bucket'] )
-			->andReturn( true );
-
-		// Mock putObject for each file upload.
-		$mock_s3_client->shouldReceive( 'putObject' )
-			->withArgs( function ( $args ) use ( $settings ) {
-				return $args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] ) &&
-					isset( $args['Body'] );
-			} )
-			->andReturn( new Result( [] ) );
-
-		// Mock stream wrapper methods
-		$mock_s3_client->shouldReceive( 'getCommand' )
-			->withArgs( function ( $command, $args ) use ( $settings ) {
-				return in_array( $command, [ 'PutObject', 'GetObject', 'HeadObject', 'DeleteObject' ], true ) &&
-					$args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] );
-			} )
-			->andReturn( Mockery::mock( [ 'offsetGet' => null, 'offsetExists' => false ] ) );
-
-		$mock_s3_client->shouldReceive( 'execute' )
-			->withArgs( function ( $command ) {
-				return true;
-			} )
-			->andReturn( new Result( [] ) );
-
 		// Set up the plugin with mock client.
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
-			$settings
+			$this->default_settings
 		);
 
+		$s3_client = $this->create_mock_s3_client();
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			's3',
-			$mock_s3_client
+			$s3_client
 		);
 
 		$this->s3_media_sync->setup();
@@ -142,14 +103,10 @@ class BulkOperationsTest extends TestCase {
 		// Create temporary test files and process them.
 		foreach ( $test_data['files'] as $file ) {
 			// Create the test file
-			file_put_contents( $file['path'], 'Test content for ' . $file['name'] );
+			$test_file_path = $this->create_temp_file($file['name']);
 
 			// Simulate WordPress upload
-			$upload = [
-				'file' => $file['path'],
-				'url'  => $file['url'],
-				'type' => $file['type'],
-			];
+			$upload = $this->create_test_upload($test_file_path, $file['type']);
 
 			// Test the upload sync
 			$result = $this->s3_media_sync->add_attachment_to_s3( $upload, 'upload' );
@@ -158,7 +115,7 @@ class BulkOperationsTest extends TestCase {
 			Assert::assertSame( $upload, $result, 'Upload data should be returned unchanged for ' . $file['name'] );
 
 			// Clean up
-			unlink( $file['path'] );
+			unlink( $test_file_path );
 		}
 	}
 

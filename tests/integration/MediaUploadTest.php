@@ -69,75 +69,29 @@ class MediaUploadTest extends TestCase {
 	 * @param array $test_data The test data.
 	 */
 	public function test_media_upload_syncs_to_s3( array $test_data ): void {
-		$settings = [
-			'bucket'     => 'test-bucket',
-			'key'        => 'test-key',
-			'secret'     => 'test-secret',
-			'region'     => 'test-region',
-			'object_acl' => 'public-read',
-		];
-
-		// Create a mock S3 client.
-		$mock_s3_client = Mockery::mock( S3Client::class );
-
-		// Mock bucket existence check.
-		$mock_s3_client->shouldReceive( 'doesBucketExist' )
-			->with( $settings['bucket'] )
-			->andReturn( true );
-
-		// Mock putObject for the upload.
-		$mock_s3_client->shouldReceive( 'putObject' )
-			->withArgs( function ( $args ) use ( $settings, $test_data ) {
-				return $args['Bucket'] === $settings['bucket'] &&
-					$args['Key'] === $test_data['expected_s3_path'] &&
-					isset( $args['Body'] );
-			} )
-			->twice()
-			->andReturn( new Result( [] ) );
-
-		// Mock stream wrapper methods
-		$mock_s3_client->shouldReceive( 'getCommand' )
-			->withArgs( function ( $command, $args ) use ( $settings ) {
-				return in_array( $command, [ 'PutObject', 'GetObject', 'HeadObject', 'DeleteObject' ], true ) &&
-					$args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] );
-			} )
-			->andReturn( Mockery::mock( [ 'offsetGet' => null, 'offsetExists' => false ] ) );
-
-		$mock_s3_client->shouldReceive( 'execute' )
-			->withArgs( function ( $command ) {
-				return true;
-			} )
-			->andReturn( new Result( [] ) );
-
 		// Set up the plugin with mock client.
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
-			$settings
+			$this->default_settings
 		);
 
+		$s3_client = $this->create_mock_s3_client();
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			's3',
-			$mock_s3_client
+			$s3_client
 		);
 
 		$this->s3_media_sync->setup();
 
 		// Create a temporary test file.
-		$upload_dir = wp_upload_dir();
-		$test_file_path = $upload_dir['path'] . '/' . basename( $test_data['file']['name'] );
-		file_put_contents( $test_file_path, 'Test content' );
+		$test_file_path = $this->create_temp_file($test_data['file']['name']);
 
 		// Simulate WordPress upload.
-		$upload = [
-			'file' => $test_file_path,
-			'url'  => $upload_dir['url'] . '/' . basename( $test_data['file']['name'] ),
-			'type' => $test_data['file']['type'],
-		];
+		$upload = $this->create_test_upload($test_file_path, $test_data['file']['type']);
 
 		// Test the upload sync.
 		$result = $this->s3_media_sync->add_attachment_to_s3( $upload, 'upload' );
