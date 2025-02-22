@@ -10,15 +10,27 @@
 	testdox="true"
 	failOnWarning="true"
 	failOnRisky="true"
-	defaultTestSuite="unit"
+	defaultTestSuite="integration"
 	verbose="true"
 	>
+	<php>
+		<ini name="display_errors" value="On" />
+		<ini name="display_startup_errors" value="On" />
+		<ini name="memory_limit" value="2G" />
+	</php>
 	<coverage processUncoveredFiles="true">
 		<include>
 			<directory suffix=".php">inc</directory>
+			<file>s3-media-sync.php</file>
 		</include>
+		<exclude>
+			<directory>vendor</directory>
+			<directory>tests</directory>
+		</exclude>
 		<report>
-			<text outputFile="php://stdout" />
+			<clover outputFile="build/logs/clover.xml"/>
+			<html outputDirectory="build/coverage"/>
+			<text outputFile="php://stdout" showUncoveredFiles="true"/>
 		</report>
 	</coverage>
 	<testsuites>
@@ -26,4 +38,14 @@
 			<directory suffix=".php">tests/integration</directory>
 		</testsuite>
 	</testsuites>
+	<groups>
+		<include>
+			<group>integration</group>
+		</include>
+	</groups>
+	<logging>
+		<testdoxHtml outputFile="build/testdox.html"/>
+		<testdoxText outputFile="build/testdox.txt"/>
+		<junit outputFile="build/logs/junit.xml"/>
+	</logging>
 </phpunit>
