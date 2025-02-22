@@ -84,68 +84,27 @@ class ImageEditorTest extends TestCase {
 	 * @param array $test_data The test data.
 	 */
 	public function test_image_editor_changes_sync_to_s3( array $test_data ): void {
-		$settings = [
-			'bucket'     => 'test-bucket',
-			'key'        => 'test-key',
-			'secret'     => 'test-secret',
-			'region'     => 'test-region',
-			'object_acl' => 'public-read',
-		];
-
-		// Create a mock S3 client.
-		$mock_s3_client = Mockery::mock( S3Client::class );
-
-		// Mock bucket existence check.
-		$mock_s3_client->shouldReceive( 'doesBucketExist' )
-			->with( $settings['bucket'] )
-			->andReturn( true );
-
-		// Mock putObject for the upload.
-		$mock_s3_client->shouldReceive( 'putObject' )
-			->withArgs( function ( $args ) use ( $settings ) {
-				return $args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] ) &&
-					isset( $args['Body'] );
-			} )
-			->twice()
-			->andReturn( new Result( [] ) );
-
-		// Mock stream wrapper methods
-		$mock_s3_client->shouldReceive( 'getCommand' )
-			->withArgs( function ( $command, $args ) use ( $settings ) {
-				return in_array( $command, [ 'PutObject', 'GetObject', 'HeadObject', 'DeleteObject' ], true ) &&
-					$args['Bucket'] === $settings['bucket'] &&
-					isset( $args['Key'] );
-			} )
-			->andReturn( Mockery::mock( [ 'offsetGet' => null, 'offsetExists' => false ] ) );
-
-		$mock_s3_client->shouldReceive( 'execute' )
-			->withArgs( function ( $command ) {
-				return true;
-			} )
-			->andReturn( new Result( [] ) );
-
 		// Set up the plugin with mock client.
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			'settings',
-			$settings
+			$this->default_settings
 		);
 
+		$s3_client = $this->create_mock_s3_client();
 		$this::set_private_property(
 			$this->s3_media_sync::class,
 			$this->s3_media_sync,
 			's3',
-			$mock_s3_client
+			$s3_client
 		);
 
 		$this->s3_media_sync->setup();
 
-		// Create a temporary test file.
-		$upload_dir = wp_upload_dir();
-		$test_file_path = $upload_dir['path'] . '/' . $test_data['filename'];
-		file_put_contents( $test_file_path, 'Test image content' );
+		// Create a temporary test file with specific content.
+		$test_content = 'Test image content for ' . $test_data['filename'];
+		$test_file_path = $this->create_temp_file($test_data['filename'], $test_content);
 
 		// Create a mock image editor.
 		$mock_image_editor = Mockery::mock( WP_Image_Editor::class );
@@ -180,16 +139,20 @@ class ImageEditorTest extends TestCase {
 				break;
 		}
 
-		// Mock the save operation
+		// Mock the save operation with edited content
+		$edited_content = $test_content . ' (edited with ' . $test_data['operation'] . ')';
 		$mock_image_editor->shouldReceive( 'save' )
 			->with( $test_file_path, $test_data['mime_type'] )
-			->andReturn( [
-				'path' => $test_file_path,
-				'file' => basename( $test_file_path ),
-				'width' => $test_data['operation'] === 'resize' ? $test_data['params']['width'] : 100,
-				'height' => $test_data['operation'] === 'resize' ? $test_data['params']['height'] : 100,
-				'mime-type' => $test_data['mime_type'],
-			] );
+			->andReturnUsing(function() use ($test_file_path, $test_data, $edited_content) {
+				file_put_contents($test_file_path, $edited_content);
+				return [
+					'path' => $test_file_path,
+					'file' => basename( $test_file_path ),
+					'width' => $test_data['operation'] === 'resize' ? $test_data['params']['width'] : 100,
+					'height' => $test_data['operation'] === 'resize' ? $test_data['params']['height'] : 100,
+					'mime-type' => $test_data['mime_type'],
+				];
+			});
 
 		// Perform the image operation before syncing
 		switch ( $test_data['operation'] ) {
@@ -226,8 +189,90 @@ class ImageEditorTest extends TestCase {
 		Assert::assertArrayHasKey( 'path', $result, 'Result should contain path' );
 		Assert::assertSame( $test_file_path, $result['path'], 'Result path should match input path' );
 
+		// Verify the file exists in S3 and has the correct content.
+		$s3_path = 's3://' . $this->default_settings['bucket'] . '/' . $test_data['expected_s3_path'];
+		Assert::assertTrue(file_exists($s3_path), 'File should exist in S3 after edit');
+
+		// Verify the content was uploaded correctly.
+		$s3_content = file_get_contents($s3_path);
+		Assert::assertSame($edited_content, $s3_content, 'S3 file content should match edited content');
+
 		// Clean up.
 		unlink( $test_file_path );
+	}
+
+	/**
+	 * Test image editor error handling.
+	 *
+	 * @dataProvider data_provider_image_edits
+	 */
+	public function test_image_editor_error_handling(array $test_data): void {
+		// Set up the plugin with mock client that will fail uploads.
+		$this::set_private_property(
+			$this->s3_media_sync::class,
+			$this->s3_media_sync,
+			'settings',
+			$this->default_settings
+		);
+
+		$s3_client = $this->create_mock_s3_client([
+			'error_code' => 'AccessDenied',
+			'error_message' => 'Access Denied',
+			'should_succeed' => false
+		]);
+
+		$this::set_private_property(
+			$this->s3_media_sync::class,
+			$this->s3_media_sync,
+			's3',
+			$s3_client
+		);
+
+		$this->s3_media_sync->setup();
+
+		// Create a temporary test file.
+		$test_file_path = $this->create_temp_file($test_data['filename']);
+
+		// Create a mock image editor.
+		$mock_image_editor = Mockery::mock( WP_Image_Editor::class );
+
+		// Mock the save operation
+		$mock_image_editor->shouldReceive( 'save' )
+			->with( $test_file_path, $test_data['mime_type'] )
+			->andReturn( [
+				'path' => $test_file_path,
+				'file' => basename( $test_file_path ),
+				'width' => 100,
+				'height' => 100,
+				'mime-type' => $test_data['mime_type'],
+			] );
+
+		// Test the image editor sync should fail.
+		$error_triggered = false;
+		set_error_handler(function($errno, $errstr) use (&$error_triggered) {
+			$error_triggered = true;
+			Assert::assertStringContainsString('Failed to open stream', $errstr);
+			Assert::assertStringContainsString('Access Denied', $errstr);
+			return true;
+		});
+
+		try {
+			$this->s3_media_sync->add_updated_attachment_to_s3(
+				false,
+				$test_file_path,
+				$mock_image_editor,
+				$test_data['mime_type'],
+				0
+			);
+		} catch (\Exception $e) {
+			// Expected
+		}
+
+		restore_error_handler();
+		Assert::assertTrue($error_triggered, 'Expected PHP error was not triggered');
+
+		// Clean up.
+		unlink($test_file_path);
 	}
 
 	/**
