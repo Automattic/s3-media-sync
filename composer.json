@@ -26,11 +26,16 @@
 		"test-integration": "./vendor/bin/phpunit --testsuite integration",
 		"test": [
 			"@test-integration"
+		],
+		"coverage": [
+			"@putenv XDEBUG_MODE=coverage",
+			"./vendor/bin/phpunit --testsuite integration --coverage-text --coverage-html build/coverage"
 		]
 	},
 	"scripts-descriptions": {
 		"test-integration": "Run integration tests with code coverage for the S3 Media Sync plugin, and send results to stdout.",
-		"test": "Run all tests for the S3 Media Sync plugin."
+		"test": "Run all tests for the S3 Media Sync plugin.",
+		"coverage": "Run tests with code coverage reporting"
 	},
 	"support": {
 		"issues": "https://github.com/Automattic/s3-media-sync/issues",

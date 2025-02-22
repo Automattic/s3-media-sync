@@ -17,6 +17,7 @@ use PHPUnit\Framework\Assert;
  * @group integration
  * @group hooks
  * @covers S3_Media_Sync
+ * @uses S3_Media_Sync_Stream_Wrapper
  */
 class HooksTest extends TestCase {
 

@@ -17,6 +17,7 @@
 		<ini name="display_errors" value="On" />
 		<ini name="display_startup_errors" value="On" />
 		<ini name="memory_limit" value="2G" />
+		<ini name="xdebug.mode" value="coverage" />
 	</php>
 	<coverage processUncoveredFiles="true">
 		<include>
@@ -26,6 +27,7 @@
 		<exclude>
 			<directory>vendor</directory>
 			<directory>tests</directory>
+			<file>inc/class-s3-media-sync-wp-cli.php</file>
 		</exclude>
 		<report>
 			<clover outputFile="build/logs/clover.xml"/>

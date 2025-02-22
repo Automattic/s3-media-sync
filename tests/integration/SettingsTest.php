@@ -19,6 +19,7 @@ use Mockery;
  * @group integration
  * @group settings
  * @covers S3_Media_Sync
+ * @uses S3_Media_Sync_Stream_Wrapper
  */
 class SettingsTest extends TestCase {
 

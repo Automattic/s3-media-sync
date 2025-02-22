@@ -21,6 +21,7 @@ use WP_Image_Editor;
  * @group integration
  * @group image-editor
  * @covers S3_Media_Sync
+ * @uses S3_Media_Sync_Stream_Wrapper
  */
 class ImageEditorTest extends TestCase {
 

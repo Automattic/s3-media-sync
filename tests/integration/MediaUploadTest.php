@@ -20,6 +20,7 @@ use Aws\Result;
  * @group integration
  * @group media-upload
  * @covers S3_Media_Sync
+ * @uses S3_Media_Sync_Stream_Wrapper
  */
 class MediaUploadTest extends TestCase {
 

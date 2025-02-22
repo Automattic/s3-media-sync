@@ -23,6 +23,7 @@ use GuzzleHttp\Psr7\Utils;
  * @group integration
  * @group stream-wrapper
  * @covers S3_Media_Sync
+ * @covers S3_Media_Sync_Stream_Wrapper
  */
 class StreamWrapperTest extends TestCase {
 
