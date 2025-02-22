@@ -59,8 +59,11 @@ abstract class TestCase extends WPTestCase {
 			'should_succeed' => true,
 		], $options);
 
+		// Track uploaded content
+		$uploaded_content = [];
+
 		// Create a mock handler
-		$handler = function ($command, $request) use ($options) {
+		$handler = function ($command, $request) use ($options, &$uploaded_content) {
 			if (!$options['should_succeed'] && $options['error_code']) {
 				$response = new Response(
 					400,
@@ -102,10 +105,40 @@ abstract class TestCase extends WPTestCase {
 				return Promise\Create::rejectionFor($exception);
 			}
 
-			// For successful operations
-			return Promise\Create::promiseFor(
-				new Result(['Body' => Utils::streamFor('Test content')])
-			);
+			// Handle different command types
+			$command_name = $command->getName();
+			$key = isset($command['Key']) ? $command['Key'] : null;
+
+			switch ($command_name) {
+				case 'PutObject':
+					$uploaded_content[$key] = (string)$command['Body'];
+					return Promise\Create::promiseFor(new Result([]));
+
+				case 'GetObject':
+					if (!isset($uploaded_content[$key])) {
+						return Promise\Create::promiseFor(new Result(['Body' => Utils::streamFor('Test content')]));
+					}
+					return Promise\Create::promiseFor(new Result(['Body' => Utils::streamFor($uploaded_content[$key])]));
+
+				case 'HeadObject':
+					if (!isset($uploaded_content[$key])) {
+						return Promise\Create::rejectionFor(
+							new \Aws\S3\Exception\S3Exception(
+								'Not Found',
+								$command,
+								['code' => 'NoSuchKey']
+							)
+						);
+					}
+					return Promise\Create::promiseFor(new Result(['ContentLength' => strlen($uploaded_content[$key])]));
+
+				case 'DeleteObject':
+					unset($uploaded_content[$key]);
+					return Promise\Create::promiseFor(new Result([]));
+
+				default:
+					return Promise\Create::promiseFor(new Result([]));
+			}
 		};
 
 		// Create the S3 client with the mock handler
