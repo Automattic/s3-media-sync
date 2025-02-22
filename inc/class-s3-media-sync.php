@@ -54,14 +54,39 @@ class S3_Media_Sync {
 
 	/**
 	 * Trigger an upload to S3 to keep the media backups in sync
+	 * 
+	 * @throws \Aws\S3\Exception\S3Exception If there is an error uploading to S3
 	 */
 	public function add_attachment_to_s3( $upload, $context ) {
 		// Grab the source and destination paths
 		$source_path      = $upload['file'];
 		$destination_path = $this->get_s3_bucket_url() . wp_parse_url( $upload['url'] )['path'];
 
-		// Copy the attachment over to S3
-		copy( $source_path, $destination_path );
+		try {
+			// Copy the attachment over to S3
+			if (!copy( $source_path, $destination_path )) {
+				throw new \RuntimeException('Failed to copy file to S3');
+			}
+		} catch (\Exception $e) {
+			// Re-throw S3 exceptions directly
+			if ($e instanceof \Aws\S3\Exception\S3Exception) {
+				throw $e;
+			}
+			// For stream wrapper errors, try to extract the AWS error code
+			if ($e instanceof \RuntimeException && preg_match('/\[([A-Za-z]+)\]/', $e->getMessage(), $matches)) {
+				throw new \Aws\S3\Exception\S3Exception(
+					$e->getMessage(),
+					new \Aws\Command('PutObject'),
+					['code' => $matches[1], 'message' => $e->getMessage()]
+				);
+			}
+			// Wrap other exceptions in an S3Exception
+			throw new \Aws\S3\Exception\S3Exception(
+				$e->getMessage(),
+				new \Aws\Command('PutObject'),
+				['code' => 'InternalError', 'message' => $e->getMessage()]
+			);
+		}
 
 		return $upload;
 	}

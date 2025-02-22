@@ -23,6 +23,36 @@ abstract class TestCase extends WPTestCase {
 	protected \S3_Media_Sync $s3_media_sync;
 
 	/**
+	 * Creates a test file in the uploads directory.
+	 *
+	 * @param string $filename The name of the file to create.
+	 * @return string The path to the created file.
+	 */
+	protected function create_test_file(string $filename): string {
+		$upload_dir = wp_upload_dir();
+		$test_file_path = $upload_dir['path'] . '/' . $filename;
+		file_put_contents($test_file_path, 'Test content for ' . $filename);
+		return $test_file_path;
+	}
+
+	/**
+	 * Creates a test attachment in WordPress.
+	 *
+	 * @param string $file_path The path to the file to create an attachment for.
+	 * @return int The ID of the created attachment.
+	 */
+	protected function create_test_attachment(string $file_path): int {
+		$attachment = [
+			'post_title' => basename($file_path),
+			'post_content' => '',
+			'post_status' => 'publish',
+			'post_mime_type' => 'image/jpeg'
+		];
+
+		return wp_insert_attachment($attachment, $file_path);
+	}
+
+	/**
 	 * Prepares the test environment before each test.
 	 *
 	 * The plugin's default s3_media_sync_setup instantiation is removed
