@@ -23,6 +23,18 @@ use Mockery;
 class SettingsTest extends TestCase {
 
 	/**
+	 * Set up before each test.
+	 */
+	public function set_up(): void {
+		parent::set_up();
+		
+		// Clear any existing settings and errors
+		delete_option( 's3_media_sync_settings' );
+		global $wp_settings_errors;
+		$wp_settings_errors = [];
+	}
+
+	/**
 	 * Test data for settings validation scenarios.
 	 *
 	 * @return array[] Array of test data.
@@ -65,6 +77,10 @@ class SettingsTest extends TestCase {
 	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_invalid_settings_cause_admin_error_notice( array $settings, string $error_code, bool $should_validate ): void {
+		// Clear any existing errors
+		global $wp_settings_errors;
+		$wp_settings_errors = [];
+
 		// Create a mock S3 client for validation.
 		$mock_s3_client = Mockery::mock( S3Client::class );
 		$mock_s3_client->shouldReceive( 'doesBucketExist' )
@@ -92,6 +108,10 @@ class SettingsTest extends TestCase {
 		}
 
 		$this->s3_media_sync->setup();
+
+		// Clear any errors that might have been set during setup
+		$wp_settings_errors = [];
+
 		$this->s3_media_sync->s3_media_sync_settings_validation( $settings );
 
 		$admin_error_codes = wp_list_pluck( get_settings_errors(), 'code' );
@@ -140,6 +160,12 @@ class SettingsTest extends TestCase {
 	 */
 	public function tear_down(): void {
 		parent::tear_down();
+
+		// Clean up settings and errors
+		delete_option( 's3_media_sync_settings' );
+		global $wp_settings_errors;
+		$wp_settings_errors = [];
+
 		Mockery::close();
 	}
 } 
