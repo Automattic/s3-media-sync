@@ -82,40 +82,46 @@ wp s3-media rm path/to/file.jpg
 
 ## Development
 
+### Integration Tests
+
+Start your local development environment of choice and run the `bin/install-wp-tests.sh` script to set up the
+database and install a copy of WordPress in your computer's `/tmp` directory.
+
+### Setup
+
+```bash
+bash bin/install-wp-tests.sh <db-name> <db-user> <db-pass> [db-host] [wp-version] [skip-database-creation]
+```
+
+#### For VVV
+
+```bash
+bash bin/install-wp-tests.sh s3_media_sync_test root root localhost latest
+```
+
+#### For Local
+
+```bash
+bash bin/install-wp-tests.sh s3_media_sync_test root root localhost:"<path_to_sock>" latest
+```
+
+#### For VIP Local Development Environment
+
+```bash
+bash bin/install-wp-tests.sh s3_media_sync_test root "" 127.0.0.1:"<port>" latest 
+```
+
+#### Troubleshooting
+
+Try deleting your tmp `/wordpress/` and `/wordpress-tests-lib/` folders if you're seeing missing file errors related to
+these directories.
+
 ### Running Tests
 
-This plugin uses PHPUnit for testing. To run the test suite:
+To run all tests:
 
-1. Install development dependencies:
-```sh
-composer install
-```
-
-2. Install the WordPress test suite:
-```sh
-./bin/install-wp-tests.sh s3_media_sync_test root 'root' localhost latest
-```
-
-The install script parameters are:
-- Database name: `s3_media_sync_test`
-- Database user: `root`
-- Database password: `` (empty)
-- Database host: `localhost`
-- WordPress version: `latest`
-
-3. Run tests:
 ```sh
 composer test
-```
-
-For specific test files:
-```sh
-composer test -- tests/test-class-s3-media-sync-wp-cli.php
-```
-
-For coverage reports:
-```sh
-composer test -- --coverage-html coverage
 ```
 
 ## FAQ

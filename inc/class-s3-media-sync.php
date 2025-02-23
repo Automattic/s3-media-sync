@@ -54,14 +54,39 @@ class S3_Media_Sync {
 
 	/**
 	 * Trigger an upload to S3 to keep the media backups in sync
+	 * 
+	 * @throws \Aws\S3\Exception\S3Exception If there is an error uploading to S3
 	 */
 	public function add_attachment_to_s3( $upload, $context ) {
 		// Grab the source and destination paths
 		$source_path      = $upload['file'];
 		$destination_path = $this->get_s3_bucket_url() . wp_parse_url( $upload['url'] )['path'];
 
-		// Copy the attachment over to S3
-		copy( $source_path, $destination_path );
+		try {
+			// Copy the attachment over to S3
+			if (!copy( $source_path, $destination_path )) {
+				throw new \RuntimeException('Failed to copy file to S3');
+			}
+		} catch (\Exception $e) {
+			// Re-throw S3 exceptions directly
+			if ($e instanceof \Aws\S3\Exception\S3Exception) {
+				throw $e;
+			}
+			// For stream wrapper errors, try to extract the AWS error code
+			if ($e instanceof \RuntimeException && preg_match('/\[([A-Za-z]+)\]/', $e->getMessage(), $matches)) {
+				throw new \Aws\S3\Exception\S3Exception(
+					$e->getMessage(),
+					new \Aws\Command('PutObject'),
+					['code' => $matches[1], 'message' => $e->getMessage()]
+				);
+			}
+			// Wrap other exceptions in an S3Exception
+			throw new \Aws\S3\Exception\S3Exception(
+				$e->getMessage(),
+				new \Aws\Command('PutObject'),
+				['code' => 'InternalError', 'message' => $e->getMessage()]
+			);
+		}
 
 		return $upload;
 	}
@@ -194,7 +219,8 @@ class S3_Media_Sync {
 			__( 'S3 Access Key ID', 's3-media-sync' ),
 			[ $this, 's3_key_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[key]' ]
 		);
 
 		// Setting: S3 Secret Access Key
@@ -203,7 +229,8 @@ class S3_Media_Sync {
 			__( 'S3 Secret Access Key', 's3-media-sync' ),
 			[ $this, 's3_secret_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[secret]' ]
 		);
 
 		// Setting: S3 Bucket Name
@@ -212,7 +239,8 @@ class S3_Media_Sync {
 			__( 'S3 Bucket Name', 's3-media-sync' ),
 			[ $this, 's3_bucket_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[bucket]' ]
 		);
 
 		// Setting: S3 Region
@@ -221,7 +249,8 @@ class S3_Media_Sync {
 			__( 'S3 Region', 's3-media-sync' ),
 			[ $this, 's3_region_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[region]' ]
 		);
 
 		// Setting: S3 Object ACL
@@ -230,7 +259,8 @@ class S3_Media_Sync {
 			__( 'S3 Object ACL', 's3-media-sync' ),
 			[ $this, 's3_object_acl_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[object_acl]' ]
 		);
 	}
 
@@ -238,46 +268,50 @@ class S3_Media_Sync {
 	public function s3_key_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['key'] ) ? $options['key'] : '';
-		?>
-		<input type="text" name="s3_media_sync_settings[key]" value="<?php echo esc_attr( $value ); ?>">
-		<?php
+		printf(
+			'<input type="text" name="s3_media_sync_settings[key]" id="s3_media_sync_settings[key]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Secret Access Key text field
 	public function s3_secret_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['secret'] ) ? $options['secret'] : '';
-		?>
-		<input type="text" name="s3_media_sync_settings[secret]" value="<?php echo esc_attr( $value ); ?>">
-		<?php
+		printf(
+			'<input type="text" name="s3_media_sync_settings[secret]" id="s3_media_sync_settings[secret]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Bucket Name text field
 	public function s3_bucket_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['bucket'] ) ? $options['bucket'] : '';
-		?>
-		<input type="text" name="s3_media_sync_settings[bucket]" value="<?php echo esc_attr( $value ); ?>">
-		<?php
+		printf(
+			'<input type="text" name="s3_media_sync_settings[bucket]" id="s3_media_sync_settings[bucket]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Region text field
 	public function s3_region_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['region'] ) ? $options['region'] : '';
-		?>
-		<input type="text" name="s3_media_sync_settings[region]" value="<?php echo esc_attr( $value ); ?>">
-		<?php
+		printf(
+			'<input type="text" name="s3_media_sync_settings[region]" id="s3_media_sync_settings[region]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Object ACL dropdown
 	public function s3_object_acl_render() {
-		$options = get_option( 's3_media_sync_settings' );
-		$value   = ! empty( $options['object_acl'] ) ? $options['object_acl'] : '';
+		$options = get_option('s3_media_sync_settings');
+		$value = !empty($options['object_acl']) ? $options['object_acl'] : '';
 		?>
-		<select name="s3_media_sync_settings[object_acl]">
-		<option <?php selected( $value, 'private', true ); ?>><?php _e( 'private', 's3-media-sync' ); ?></option>
-		<option <?php selected( $value, 'public-read', true ); ?>><?php _e( 'public-read', 's3-media-sync' ); ?></option>
+		<select name="s3_media_sync_settings[object_acl]" id="s3_media_sync_settings[object_acl]">
+			<option<?php selected($value, 'private', true); ?>><?php _e('private', 's3-media-sync'); ?></option>
+			<option<?php selected($value, 'public-read', true); ?>><?php _e('public-read', 's3-media-sync'); ?></option>
 		</select>
 		<?php
 	}

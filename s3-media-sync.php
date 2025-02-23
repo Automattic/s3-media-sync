@@ -9,6 +9,8 @@
  * Version: 1.4.1
  */
 
+ const S3_MEDIA_SYNC_FILE = __FILE__;
+
 /**
  * Class that handles s3 stream wrapper
  */
