@@ -7,17 +7,10 @@
 
 namespace S3_Media_Sync\Tests\Integration;
 
-use Aws\Command;
-use Aws\CommandInterface;
-use Aws\S3\Exception\S3Exception;
-use Aws\S3\S3Client;
-use GuzzleHttp\Promise;
-use GuzzleHttp\Psr7\Request;
-use GuzzleHttp\Psr7\Response;
-use S3_Media_Sync\Tests\TestCase;
-use S3_Media_Sync;
 use Mockery;
 use PHPUnit\Framework\Assert;
+use S3_Media_Sync;
+use S3_Media_Sync\Tests\TestCase;
 
 /**
  * Test case for S3 Media Sync error handling functionality.

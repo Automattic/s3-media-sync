@@ -7,9 +7,8 @@
 
 namespace S3_Media_Sync\Tests\Integration;
 
-use S3_Media_Sync;
-use S3_Media_Sync\Tests\TestCase;
 use PHPUnit\Framework\Assert;
+use S3_Media_Sync\Tests\TestCase;
 
 /**
  * Test case for S3 Media Sync hooks registration and functionality.

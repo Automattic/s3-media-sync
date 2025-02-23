@@ -7,11 +7,9 @@
 
 namespace S3_Media_Sync\Tests\Integration;
 
-use S3_Media_Sync;
-use S3_Media_Sync\Tests\TestCase;
-use PHPUnit\Framework\Assert;
-use Aws\S3\S3Client;
 use Mockery;
+use PHPUnit\Framework\Assert;
+use S3_Media_Sync\Tests\TestCase;
 
 /**
  * Test case for S3 Media Sync file deletion functionality.
