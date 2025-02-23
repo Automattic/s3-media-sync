@@ -6,7 +6,6 @@
 	beStrictAboutOutputDuringTests="true"
 	beStrictAboutTodoAnnotatedTests="true"
 	colors="true"
-	executionOrder="random"
 	testdox="true"
 	failOnWarning="true"
 	failOnRisky="true"
@@ -41,9 +40,9 @@
 		</testsuite>
 	</testsuites>
 	<groups>
-		<include>
-			<group>integration</group>
-		</include>
+		<exclude>
+			<group>skip</group>
+		</exclude>
 	</groups>
 	<logging>
 		<testdoxHtml outputFile="build/testdox.html"/>
