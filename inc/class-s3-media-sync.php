@@ -268,35 +268,52 @@ class S3_Media_Sync {
 	public function s3_key_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['key'] ) ? $options['key'] : '';
-		include dirname( S3_MEDIA_SYNC_FILE ) . '/views/s3-key-template.php';
+		printf(
+			'<input type="text" name="s3_media_sync_settings[key]" id="s3_media_sync_settings[key]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Secret Access Key text field
 	public function s3_secret_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['secret'] ) ? $options['secret'] : '';
-		include dirname( S3_MEDIA_SYNC_FILE ) . '/views/s3-secret-template.php';
+		printf(
+			'<input type="text" name="s3_media_sync_settings[secret]" id="s3_media_sync_settings[secret]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Bucket Name text field
 	public function s3_bucket_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['bucket'] ) ? $options['bucket'] : '';
-		include dirname( S3_MEDIA_SYNC_FILE ) . '/views/s3-bucket-template.php';
+		printf(
+			'<input type="text" name="s3_media_sync_settings[bucket]" id="s3_media_sync_settings[bucket]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Region text field
 	public function s3_region_render() {
 		$options = get_option( 's3_media_sync_settings' );
 		$value   = ! empty( $options['region'] ) ? $options['region'] : '';
-		include dirname( S3_MEDIA_SYNC_FILE ) . '/views/s3-region-template.php';
+		printf(
+			'<input type="text" name="s3_media_sync_settings[region]" id="s3_media_sync_settings[region]" value="%s">',
+			esc_attr( $value )
+		);
 	}
 
 	// Render the S3 Object ACL dropdown
 	public function s3_object_acl_render() {
 		$options = get_option('s3_media_sync_settings');
 		$value = !empty($options['object_acl']) ? $options['object_acl'] : '';
-		include dirname( S3_MEDIA_SYNC_FILE ) . '/views/s3-object-acl-template.php';
+		?>
+		<select name="s3_media_sync_settings[object_acl]" id="s3_media_sync_settings[object_acl]">
+			<option<?php selected($value, 'private', true); ?>><?php _e('private', 's3-media-sync'); ?></option>
+			<option<?php selected($value, 'public-read', true); ?>><?php _e('public-read', 's3-media-sync'); ?></option>
+		</select>
+		<?php
 	}
 
 	/**

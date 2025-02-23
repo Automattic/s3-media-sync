@@ -14,13 +14,13 @@ use S3_Media_Sync\Tests\TestCase;
 class UserInterfaceTest extends TestCase {
 
     public function test_s3_key_render_displays_correct_html() {
-        // Simulate the options array
+        // Simulate the options array and update WordPress option
         $options = ['key' => 'test-key'];
+        update_option('s3_media_sync_settings', $options);
 
         // Start output buffering
         ob_start();
-        $value = !empty($options['key']) ? $options['key'] : '';
-        include dirname(\S3_MEDIA_SYNC_FILE) . '/views/s3-key-template.php';
+        $this->s3_media_sync->s3_key_render();
         $output = ob_get_clean();
 
         // Assert the output contains the expected HTML
@@ -28,13 +28,13 @@ class UserInterfaceTest extends TestCase {
     }
 
     public function test_s3_secret_render_displays_correct_html() {
-        // Simulate the options array
+        // Simulate the options array and update WordPress option
         $options = ['secret' => 'test-secret'];
+        update_option('s3_media_sync_settings', $options);
 
         // Start output buffering
         ob_start();
-        $value = !empty($options['secret']) ? $options['secret'] : '';
-        include dirname(\S3_MEDIA_SYNC_FILE) . '/views/s3-secret-template.php';
+        $this->s3_media_sync->s3_secret_render();
         $output = ob_get_clean();
 
         // Assert the output contains the expected HTML
@@ -42,13 +42,13 @@ class UserInterfaceTest extends TestCase {
     }
 
     public function test_s3_bucket_render_displays_correct_html() {
-        // Simulate the options array
+        // Simulate the options array and update WordPress option
         $options = ['bucket' => 'test-bucket'];
+        update_option('s3_media_sync_settings', $options);
 
         // Start output buffering
         ob_start();
-        $value = !empty($options['bucket']) ? $options['bucket'] : '';
-        include dirname(\S3_MEDIA_SYNC_FILE) . '/views/s3-bucket-template.php';
+        $this->s3_media_sync->s3_bucket_render();
         $output = ob_get_clean();
 
         // Assert the output contains the expected HTML
@@ -56,13 +56,13 @@ class UserInterfaceTest extends TestCase {
     }
 
     public function test_s3_region_render_displays_correct_html() {
-        // Simulate the options array
+        // Simulate the options array and update WordPress option
         $options = ['region' => 'test-region'];
+        update_option('s3_media_sync_settings', $options);
 
         // Start output buffering
         ob_start();
-        $value = !empty($options['region']) ? $options['region'] : '';
-        include dirname(\S3_MEDIA_SYNC_FILE) . '/views/s3-region-template.php';
+        $this->s3_media_sync->s3_region_render();
         $output = ob_get_clean();
 
         // Assert the output contains the expected HTML
@@ -90,13 +90,13 @@ class UserInterfaceTest extends TestCase {
         ];
 
         foreach ($test_cases as $case => $data) {
-            // Simulate the options array
+            // Simulate the options array and update WordPress option
             $options = ['object_acl' => $data['value']];
+            update_option('s3_media_sync_settings', $options);
 
             // Start output buffering
             ob_start();
-            $value = !empty($options['object_acl']) ? $options['object_acl'] : '';
-            include dirname(\S3_MEDIA_SYNC_FILE) . '/views/s3-object-acl-template.php';
+            $this->s3_media_sync->s3_object_acl_render();
             $output = ob_get_clean();
 
             // Assert the output contains the expected HTML structure
@@ -116,5 +116,13 @@ class UserInterfaceTest extends TestCase {
                 "Public-read option not rendered correctly for case: {$case}"
             );
         }
+    }
+
+    /**
+     * Clean up after each test.
+     */
+    public function tear_down(): void {
+        parent::tear_down();
+        delete_option('s3_media_sync_settings');
     }
 } 
