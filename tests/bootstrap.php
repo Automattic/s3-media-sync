@@ -49,6 +49,11 @@ if ( $plugin_slug_key && 'integration' === $plugin_slug_argv[ $plugin_slug_key +
 		exit( 1 );
 	}
 
+	// Define the main plugin file path
+	if ( ! defined( 'S3_MEDIA_SYNC_FILE' ) ) {
+		define( 'S3_MEDIA_SYNC_FILE', WP_PLUGIN_DIR . '/s3-media-sync/s3-media-sync.php' );
+	}
+
 	// Additional necessary requires.
 	require_once __DIR__ . '/trait-tests-reflection.php';
 } else {
