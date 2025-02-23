@@ -219,7 +219,8 @@ class S3_Media_Sync {
 			__( 'S3 Access Key ID', 's3-media-sync' ),
 			[ $this, 's3_key_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[key]' ]
 		);
 
 		// Setting: S3 Secret Access Key
@@ -228,7 +229,8 @@ class S3_Media_Sync {
 			__( 'S3 Secret Access Key', 's3-media-sync' ),
 			[ $this, 's3_secret_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[secret]' ]
 		);
 
 		// Setting: S3 Bucket Name
@@ -237,7 +239,8 @@ class S3_Media_Sync {
 			__( 'S3 Bucket Name', 's3-media-sync' ),
 			[ $this, 's3_bucket_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[bucket]' ]
 		);
 
 		// Setting: S3 Region
@@ -246,7 +249,8 @@ class S3_Media_Sync {
 			__( 'S3 Region', 's3-media-sync' ),
 			[ $this, 's3_region_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[region]' ]
 		);
 
 		// Setting: S3 Object ACL
@@ -255,7 +259,8 @@ class S3_Media_Sync {
 			__( 'S3 Object ACL', 's3-media-sync' ),
 			[ $this, 's3_object_acl_render' ],
 			's3_media_sync_settings_page',
-			's3_media_sync_settings'
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[object_acl]' ]
 		);
 	}
 
