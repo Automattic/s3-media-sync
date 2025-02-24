@@ -9,37 +9,22 @@
  * Version: 1.4.1
  */
 
- const S3_MEDIA_SYNC_FILE = __FILE__;
+define( 'S3_MEDIA_SYNC_FILE', __FILE__ );
 
-/**
- * Class that handles s3 stream wrapper
- */
-require_once plugin_dir_path( __FILE__ ) . 'inc/class-s3-media-sync-stream-wrapper.php';
+require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-settings.php';
+require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync.php';
+require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-stream-wrapper.php';
 
-/**
- * Class that handles core plugin functionality
- */
-require_once plugin_dir_path( __FILE__ ) . 'inc/class-s3-media-sync.php';
-
-/**
- * Class that adds WP-CLI commands
- */
-if ( defined( 'WP_CLI' ) && WP_CLI && class_exists( 'WPCOM_VIP_CLI_Command' ) ) {
+if ( defined( 'WP_CLI' ) && class_exists( 'WPCOM_VIP_CLI_Command' ) ) {
 	require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-wp-cli.php';
 }
 
-/**
- * Set up the plugin
- */
-function s3_media_sync_setup() {
-
-	// Ensure the AWS SDK can be loaded.
-	if ( ! class_exists( '\\Aws\\S3\\S3Client' ) ) {
-		// Require AWS Autoloader file.
-		require_once dirname( __FILE__ ) . '/vendor/autoload.php';
+// Initialize the plugin with dependencies
+add_action(
+	'plugins_loaded',
+	function() {
+		$settings_handler = new S3_Media_Sync_Settings();
+		$s3_media_sync = new S3_Media_Sync( $settings_handler );
+		$s3_media_sync->setup();
 	}
-
-	$instance = S3_Media_Sync::init();
-	$instance->setup();
-}
-add_action( 'plugins_loaded', 's3_media_sync_setup' );
+);

@@ -7,18 +7,20 @@
 
 namespace S3_Media_Sync\Tests;
 
-use Yoast\WPTestUtils\WPIntegration\TestCase as WPTestCase;
-use Aws\S3\S3Client;
-use Aws\CommandInterface;
 use Aws\Command;
+use Aws\CommandInterface;
 use Aws\Result;
+use Aws\S3\S3Client;
 use GuzzleHttp\Promise;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Utils;
 use Mockery;
+use S3_Media_Sync;
+use S3_Media_Sync_Settings;
+use Yoast\WPTestUtils\WPIntegration\TestCase as WPTestCase;
 
 /**
- * Abstract base class for all test case implementations.
+ * Base test case for S3 Media Sync.
  */
 abstract class TestCase extends WPTestCase {
 	use Tests_Reflection;
@@ -28,20 +30,21 @@ abstract class TestCase extends WPTestCase {
 	 *
 	 * @var \S3_Media_Sync $s3_media_sync The S3_Media_Sync instance.
 	 */
-	protected \S3_Media_Sync $s3_media_sync;
+	protected S3_Media_Sync $s3_media_sync;
 
 	/**
 	 * Default test settings.
 	 *
 	 * @var array
 	 */
-	protected $default_settings = [
-		'bucket'     => 'test-bucket',
-		'key'        => 'test-key',
-		'secret'     => 'test-secret',
-		'region'     => 'test-region',
-		'object_acl' => 'public-read',
-	];
+	protected array $default_settings;
+
+	/**
+	 * Settings handler for the S3_Media_Sync instance.
+	 *
+	 * @var \S3_Media_Sync_Settings_Handler $settings_handler The settings handler.
+	 */
+	protected $settings_handler;
 
 	/**
 	 * Creates a mock S3 client for testing.
@@ -244,26 +247,25 @@ abstract class TestCase extends WPTestCase {
 			require_once dirname( __FILE__, 2 ) . '/vendor/autoload.php';
 		}
 
-		$this->s3_media_sync = \S3_Media_Sync::init();
+		$this->default_settings = [
+			'bucket' => 'test-bucket',
+			'key' => 'test-key',
+			'secret' => 'test-secret',
+			'region' => 'test-region',
+			'object_acl' => 'public-read',
+		];
 
-		remove_action( 'plugins_loaded', [ $this->s3_media_sync, 's3_media_sync_setup' ] );
+		$this->settings_handler = new S3_Media_Sync_Settings();
+		$this->settings_handler->update_settings($this->default_settings);
+		$this->s3_media_sync = new S3_Media_Sync($this->settings_handler);
 	}
 
 	/**
-	 * Nullify the S3_Media_Sync instance after each test.
-	 *
-	 * @throws \ReflectionException If reflection fails.
+	 * Clean up after each test.
 	 */
 	public function tear_down(): void {
 		parent::tear_down();
-
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'instance',
-			null
-		);
-
+		delete_option('s3_media_sync_settings');
 		Mockery::close();
 	}
 } 

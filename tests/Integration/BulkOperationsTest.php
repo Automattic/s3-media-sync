@@ -16,8 +16,9 @@ use S3_Media_Sync\Tests\TestCase;
  *
  * @group integration
  * @group bulk-operations
- * @covers S3_Media_Sync
- * @uses S3_Media_Sync_Stream_Wrapper
+ * @covers \S3_Media_Sync
+ * @uses \S3_Media_Sync_Stream_Wrapper
+ * @uses \S3_Media_Sync_Settings
  */
 class BulkOperationsTest extends TestCase {
 

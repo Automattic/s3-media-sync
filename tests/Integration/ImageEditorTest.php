@@ -17,8 +17,9 @@ use WP_Image_Editor;
  *
  * @group integration
  * @group image-editor
- * @covers S3_Media_Sync
- * @uses S3_Media_Sync_Stream_Wrapper
+ * @covers \S3_Media_Sync
+ * @uses \S3_Media_Sync_Stream_Wrapper
+ * @uses \S3_Media_Sync_Settings
  */
 class ImageEditorTest extends TestCase {
 
