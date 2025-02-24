@@ -44,7 +44,7 @@ class S3_Media_Sync_Settings {
 		}
 
 		// This check will test the API keys provided
-		$s3_client = new S3_Media_Sync();
+		$s3_client = new S3_Media_Sync( $this );
 		if ( false === $s3_client->s3()->doesBucketExist( $this->settings['bucket'] ) ) {
 			add_settings_error(
 				's3_media_sync_settings',
@@ -62,7 +62,7 @@ class S3_Media_Sync_Settings {
 	public function render_settings_page() {
 		?>
 		<div class="wrap">
-			<h2>S3 Media Sync</h2>
+			<h2><?php _e( 'S3 Media Sync', 's3-media-sync' ); ?></h2>
 				<form action='options.php' method='post'>
 					<?php settings_fields( 's3_media_sync_settings_page' ); ?>
 					<?php do_settings_sections( 's3_media_sync_settings_page' ); ?>

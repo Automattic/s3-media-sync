@@ -52,7 +52,6 @@ class StreamWrapperTest extends TestCase {
 	 * @dataProvider data_provider_stream_wrapper_settings
 	 * 
 	 * @param array $settings The settings to test with.
-	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_stream_wrapper_registered( array $settings ): void {
 		$this::set_private_property(
@@ -73,7 +72,6 @@ class StreamWrapperTest extends TestCase {
 	 * @dataProvider data_provider_stream_wrapper_settings
 	 * 
 	 * @param array $settings The settings to test with.
-	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_stream_wrapper_functionality( array $settings ): void {
 		// Set up the plugin with mock client.

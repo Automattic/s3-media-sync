@@ -255,31 +255,17 @@ abstract class TestCase extends WPTestCase {
 			'object_acl' => 'public-read',
 		];
 
-		$this->s3_media_sync = S3_Media_Sync::init();
-		$this->settings_handler = $this->s3_media_sync->get_settings_handler();
-		
-		// Initialize settings
-		update_option('s3_media_sync_settings', $this->default_settings);
+		$this->settings_handler = new S3_Media_Sync_Settings();
 		$this->settings_handler->update_settings($this->default_settings);
+		$this->s3_media_sync = new S3_Media_Sync($this->settings_handler);
 	}
 
 	/**
-	 * Nullify the S3_Media_Sync instance after each test.
-	 *
-	 * @throws \ReflectionException If reflection fails.
+	 * Clean up after each test.
 	 */
 	public function tear_down(): void {
 		parent::tear_down();
-
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'instance',
-			null
-		);
-
 		delete_option('s3_media_sync_settings');
-
 		Mockery::close();
 	}
 } 

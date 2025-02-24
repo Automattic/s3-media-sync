@@ -1,27 +1,13 @@
 <?php
 
 class S3_Media_Sync {
-
-	private static $instance;
 	private $settings;
 	private $s3;
 	private $settings_handler;
 
-	/**
-	 *
-	 * @return S3_Media_Sync
-	 */
-	public static function init() {
-		if ( ! self::$instance ) {
-			self::$instance = new S3_Media_Sync();
-		}
-
-		return self::$instance;
-	}
-
-	public function __construct() {
-		$this->settings_handler = new S3_Media_Sync_Settings();
-		$this->settings = $this->settings_handler->get_settings();
+	public function __construct( S3_Media_Sync_Settings $settings_handler ) {
+		$this->settings_handler = $settings_handler;
+		$this->settings         = $this->settings_handler->get_settings();
 	}
 
 	/**

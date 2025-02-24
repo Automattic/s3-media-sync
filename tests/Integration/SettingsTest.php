@@ -11,9 +11,11 @@ use Aws\S3\S3Client;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
+use S3_Media_Sync;
+use S3_Media_Sync_Settings;
 
 /**
- * Test case for S3 Media Sync settings validation.
+ * Test case for S3 Media Sync settings functionality.
  *
  * @group integration
  * @group settings
@@ -75,7 +77,6 @@ class SettingsTest extends TestCase {
 	 * @param array  $settings    The settings to test with.
 	 * @param string $error_code  The expected error code.
 	 * @param bool   $should_validate Whether validation should be performed.
-	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_invalid_settings_cause_admin_error_notice( array $settings, string $error_code, bool $should_validate ): void {
 		// Clear any existing errors
@@ -129,7 +130,6 @@ class SettingsTest extends TestCase {
 	 * @param array  $settings    The settings to test with.
 	 * @param string $error_code  The expected error code.
 	 * @param bool   $should_validate Whether validation should be performed.
-	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_settings_are_saved( array $settings, string $error_code, bool $should_validate ): void {
 		// Update settings

@@ -81,7 +81,6 @@ class HooksTest extends TestCase {
 	 * 
 	 * @param array $settings            The settings to test with.
 	 * @param bool  $should_be_registered Whether the hooks should be registered.
-	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_media_syncs_hooks_registration( array $settings, bool $should_be_registered ): void {
 		$this::set_private_property(
