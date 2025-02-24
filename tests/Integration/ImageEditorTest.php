@@ -83,21 +83,8 @@ class ImageEditorTest extends TestCase {
 	 */
 	public function test_image_editor_changes_sync_to_s3( array $test_data ): void {
 		// Set up the plugin with mock client.
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$this->default_settings
-		);
-
-		$s3_client = $this->create_mock_s3_client();
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
-
+		$this->settings_handler->update_settings($this->default_settings);
+		$this->create_mock_s3_client();
 		$this->s3_media_sync->setup();
 
 		// Create a temporary test file with specific content.
@@ -199,26 +186,12 @@ class ImageEditorTest extends TestCase {
 	 */
 	public function test_image_editor_error_handling(array $test_data): void {
 		// Set up the plugin with mock client that will fail uploads.
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$this->default_settings
-		);
-
-		$s3_client = $this->create_mock_s3_client([
+		$this->settings_handler->update_settings($this->default_settings);
+		$this->create_mock_s3_client([
 			'error_code' => 'AccessDenied',
 			'error_message' => 'Access Denied',
 			'should_succeed' => false
 		]);
-
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
-
 		$this->s3_media_sync->setup();
 
 		// Create a temporary test file.

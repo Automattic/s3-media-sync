@@ -2,12 +2,16 @@
 
 class S3_Media_Sync {
 	private $settings;
-	private $s3;
 	private $settings_handler;
 
+	/**
+	 * Constructor.
+	 *
+	 * @param S3_Media_Sync_Settings $settings_handler Settings handler instance.
+	 */
 	public function __construct( S3_Media_Sync_Settings $settings_handler ) {
 		$this->settings_handler = $settings_handler;
-		$this->settings         = $this->settings_handler->get_settings();
+		$this->settings        = $this->settings_handler->get_settings();
 	}
 
 	/**
@@ -40,13 +44,28 @@ class S3_Media_Sync {
 		// Only proceed with stream wrapper and hooks if we have all required settings
 		if ( $this->settings_handler->has_required_settings() && isset($this->settings['region']) && !empty($this->settings['region']) ) {
 			// Register and configure the stream wrapper
-			$this->register_stream_wrapper();
+			$factory = $this->get_client_factory();
+			$s3_client = $factory->create($this->settings);
+			$factory->configure_stream_wrapper($s3_client, $this->settings);
 
 			// Perform on-the-fly media syncs by hooking into these actions
 			add_filter( 'wp_handle_upload', [ $this, 'add_attachment_to_s3' ], 10, 2 );
 			add_action( 'delete_attachment', [ $this, 'delete_attachment_from_s3' ], 10, 1 );
 			add_filter( 'wp_save_image_editor_file', [ $this, 'add_updated_attachment_to_s3' ], 10, 5 );
 		}
+	}
+
+	/**
+	 * Get the client factory instance
+	 *
+	 * @return S3_Media_Sync_Client_Factory
+	 */
+	private function get_client_factory() {
+		// Allow tests to override the factory via global
+		if (isset($GLOBALS['s3_media_sync_client_factory'])) {
+			return $GLOBALS['s3_media_sync_client_factory'];
+		}
+		return new S3_Media_Sync_Client_Factory();
 	}
 
 	/**
@@ -77,6 +96,28 @@ class S3_Media_Sync {
 					['code' => $matches[1], 'message' => $e->getMessage()]
 				);
 			}
+			// For other stream wrapper errors, try to extract the error code from the message
+			if ($e instanceof \RuntimeException && strpos($e->getMessage(), 'InvalidAccessKeyId') !== false) {
+				throw new \Aws\S3\Exception\S3Exception(
+					$e->getMessage(),
+					new \Aws\Command('PutObject'),
+					['code' => 'InvalidAccessKeyId', 'message' => $e->getMessage()]
+				);
+			}
+			if ($e instanceof \RuntimeException && strpos($e->getMessage(), 'NoSuchBucket') !== false) {
+				throw new \Aws\S3\Exception\S3Exception(
+					$e->getMessage(),
+					new \Aws\Command('PutObject'),
+					['code' => 'NoSuchBucket', 'message' => $e->getMessage()]
+				);
+			}
+			if ($e instanceof \RuntimeException && strpos($e->getMessage(), 'Access Denied') !== false) {
+				throw new \Aws\S3\Exception\S3Exception(
+					$e->getMessage(),
+					new \Aws\Command('PutObject'),
+					['code' => 'AccessDenied', 'message' => $e->getMessage()]
+				);
+			}
 			// Wrap other exceptions in an S3Exception
 			throw new \Aws\S3\Exception\S3Exception(
 				$e->getMessage(),
@@ -105,7 +146,9 @@ class S3_Media_Sync {
 		}
 
 		// Delete the matching attachment
-		$this->s3()->deleteMatchingObjects( $bucket, $path );
+		$factory = $this->get_client_factory();
+		$s3_client = $factory->create($this->settings);
+		$s3_client->deleteMatchingObjects( $bucket, $path );
 	}
 
 	/**
@@ -127,66 +170,5 @@ class S3_Media_Sync {
 		}
 
 		return $override;
-	}
-
-	/**
-	 * Props S3 Uploads and HM: https://github.com/humanmade/S3-Uploads/
-	 *
-	 * Register the stream wrapper for s3
-	 */
-	public function register_stream_wrapper() {
-		// Only proceed to register the stream wrapper if all required fields are set
-		if ( ! $this->settings_handler->has_required_settings() ) {
-			return;
-		}
-
-		// Ensure we have all required settings for S3 client
-		if ( ! isset($this->settings['region']) || empty($this->settings['region']) ) {
-			return;
-		}
-
-		// Register and configure stream wrapper
-		S3_Media_Sync_Stream_Wrapper::register( $this->s3() );
-		$objectAcl = isset( $this->settings['object_acl'] ) ? sanitize_text_field( $this->settings['object_acl'] ) : 'public-read';
-		stream_context_set_option( stream_context_get_default(), 's3', 'ACL', $objectAcl );
-		stream_context_set_option( stream_context_get_default(), 's3', 'seekable', true );
-	}
-
-	/**
-	 * Props S3 Uploads and HM: https://github.com/humanmade/S3-Uploads/
-	 *
-	 * @return Aws\S3\S3Client
-	 */
-	public function s3() {
-		if ( ! empty( $this->s3 ) ) {
-			return $this->s3;
-		}
-
-		$params = array( 'version' => 'latest' );
-
-		if ( isset($this->settings['key']) && isset($this->settings['secret']) && $this->settings['key'] && $this->settings['secret'] ) {
-			$params['credentials']['key']    = $this->settings['key'];
-			$params['credentials']['secret'] = $this->settings['secret'];
-		}
-
-		if ( isset($this->settings['region']) && $this->settings['region'] ) {
-			$params['signature'] = 'v4';
-			$params['region']    = $this->settings['region'];
-		}
-
-		if ( defined( 'WP_PROXY_HOST' ) && defined( 'WP_PROXY_PORT' ) ) {
-			$proxy_auth    = '';
-			$proxy_address = WP_PROXY_HOST . ':' . WP_PROXY_PORT;
-
-			if ( defined( 'WP_PROXY_USERNAME' ) && defined( 'WP_PROXY_PASSWORD' ) ) {
-				$proxy_auth = WP_PROXY_USERNAME . ':' . WP_PROXY_PASSWORD . '@';
-			}
-
-			$params['request.options']['proxy'] = $proxy_auth . $proxy_address;
-		}
-
-		$this->s3 = Aws\S3\S3Client::factory( $params );
-
-		return $this->s3;
 	}
 }

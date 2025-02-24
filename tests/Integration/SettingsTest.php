@@ -13,6 +13,7 @@ use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
 use S3_Media_Sync;
 use S3_Media_Sync_Settings;
+use S3_Media_Sync_Client_Factory;
 
 /**
  * Test case for S3 Media Sync settings functionality.
@@ -22,6 +23,7 @@ use S3_Media_Sync_Settings;
  * @covers \S3_Media_Sync_Settings
  * @uses \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
+ * @uses \S3_Media_Sync_Client_Factory
  */
 class SettingsTest extends TestCase {
 
@@ -83,24 +85,17 @@ class SettingsTest extends TestCase {
 		global $wp_settings_errors;
 		$wp_settings_errors = [];
 
-		// Create a mock S3 client for validation.
-		$mock_s3_client = Mockery::mock( S3Client::class );
-		$mock_s3_client->shouldReceive( 'doesBucketExist' )
-			->with( $settings['bucket'] )
-			->andReturn( false );
-
 		// Update WordPress option and settings handler
 		update_option( 's3_media_sync_settings', $settings );
 		$this->settings_handler->update_settings( $settings );
 
-		// Only set the S3 client if we should validate
+		// Create a mock client if we should validate
 		if ( $should_validate ) {
-			$this::set_private_property(
-				$this->s3_media_sync::class,
-				$this->s3_media_sync,
-				's3',
-				$mock_s3_client
-			);
+			$this->create_mock_s3_client([
+				'error_code' => 'NoSuchBucket',
+				'error_message' => 'The specified bucket does not exist',
+				'should_succeed' => false
+			]);
 		}
 
 		$this->s3_media_sync->setup();

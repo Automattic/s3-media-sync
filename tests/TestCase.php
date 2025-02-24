@@ -17,6 +17,8 @@ use GuzzleHttp\Psr7\Utils;
 use Mockery;
 use S3_Media_Sync;
 use S3_Media_Sync_Settings;
+use S3_Media_Sync_Client_Factory;
+use S3_Media_Sync_Stream_Wrapper;
 use Yoast\WPTestUtils\WPIntegration\TestCase as WPTestCase;
 
 /**
@@ -42,7 +44,7 @@ abstract class TestCase extends WPTestCase {
 	/**
 	 * Settings handler for the S3_Media_Sync instance.
 	 *
-	 * @var \S3_Media_Sync_Settings_Handler $settings_handler The settings handler.
+	 * @var \S3_Media_Sync_Settings $settings_handler The settings handler.
 	 */
 	protected $settings_handler;
 
@@ -53,9 +55,9 @@ abstract class TestCase extends WPTestCase {
 	 *                      - error_code: AWS error code to simulate
 	 *                      - error_message: Error message to include
 	 *                      - should_succeed: Whether operations should succeed
-	 * @return S3Client
+	 * @return S3Client|Mockery\MockInterface
 	 */
-	protected function create_mock_s3_client(array $options = []): S3Client {
+	protected function create_mock_s3_client(array $options = []): Mockery\MockInterface {
 		$options = array_merge([
 			'error_code' => null,
 			'error_message' => null,
@@ -65,98 +67,202 @@ abstract class TestCase extends WPTestCase {
 		// Track uploaded content
 		$uploaded_content = [];
 
-		// Create a mock handler
-		$handler = function ($command, $request) use ($options, &$uploaded_content) {
-			if (!$options['should_succeed'] && $options['error_code']) {
-				$response = new Response(
-					400,
-					[
-						'X-Amz-Request-Id' => '1234567890ABCDEF',
-						'Content-Type' => 'application/xml'
-					],
-					sprintf(
-						'<?xml version="1.0" encoding="UTF-8"?>
-						<Error>
-							<Code>%s</Code>
-							<Message>%s</Message>
-							<RequestId>1234567890ABCDEF</RequestId>
-							<HostId>host-id</HostId>
-						</Error>',
-						$options['error_code'],
-						$options['error_message']
-					)
-				);
+		// Create a mock client factory
+		$mock_factory = Mockery::mock(S3_Media_Sync_Client_Factory::class);
+		
+		// Create the mock S3 client
+		$mock_client = Mockery::mock(S3Client::class);
 
-				$exception = new \Aws\S3\Exception\S3Exception(
-					sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-					$command,
-					[
-						'response' => $response,
-						'code' => $options['error_code'],
-						'message' => $options['error_message'],
-						'type' => 'client',
-						'request_id' => '1234567890ABCDEF',
-						'aws' => [
+		// Configure the mock client based on options
+		if (!$options['should_succeed'] && $options['error_code']) {
+			$mock_client->shouldReceive('doesBucketExist')
+				->andReturnUsing(function() use ($options) {
+					throw new \Aws\S3\Exception\S3Exception(
+						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+						new Command('HeadBucket'),
+						[
 							'code' => $options['error_code'],
-							'type' => 'client',
-							'message' => $options['error_message'],
-							'request_id' => '1234567890ABCDEF'
+							'message' => $options['error_message']
 						]
-					]
-				);
+					);
+				});
 
-				return Promise\Create::rejectionFor($exception);
-			}
+			$mock_client->shouldReceive('getCommand')
+				->andReturnUsing(function($command, $args) use ($options) {
+					$cmd = new Command($command, $args);
+					throw new \Aws\S3\Exception\S3Exception(
+						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+						$cmd,
+						[
+							'code' => $options['error_code'],
+							'message' => $options['error_message']
+						]
+					);
+				});
 
-			// Handle different command types
-			$command_name = $command->getName();
-			$key = isset($command['Key']) ? $command['Key'] : null;
+			$mock_client->shouldReceive('execute')
+				->andReturnUsing(function($command) use ($options) {
+					throw new \Aws\S3\Exception\S3Exception(
+						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+						$command,
+						[
+							'code' => $options['error_code'],
+							'message' => $options['error_message']
+						]
+					);
+				});
 
-			switch ($command_name) {
-				case 'PutObject':
-					$uploaded_content[$key] = (string)$command['Body'];
-					return Promise\Create::promiseFor(new Result([]));
+			$mock_client->shouldReceive('deleteMatchingObjects')
+				->andReturnUsing(function($bucket, $prefix) use ($options) {
+					throw new \Aws\S3\Exception\S3Exception(
+						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+						new Command('DeleteObjects'),
+						[
+							'code' => $options['error_code'],
+							'message' => $options['error_message']
+						]
+					);
+				});
 
-				case 'GetObject':
-					if (!isset($uploaded_content[$key])) {
-						return Promise\Create::promiseFor(new Result(['Body' => Utils::streamFor('Test content')]));
+			$mock_client->shouldReceive('putObject')
+				->andReturnUsing(function($args) use ($options) {
+					throw new \Aws\S3\Exception\S3Exception(
+						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+						new Command('PutObject'),
+						[
+							'code' => $options['error_code'],
+							'message' => $options['error_message']
+						]
+					);
+				});
+
+			$mock_client->shouldReceive('getObject')
+				->andReturnUsing(function($args) use ($options) {
+					throw new \Aws\S3\Exception\S3Exception(
+						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+						new Command('GetObject'),
+						[
+							'code' => $options['error_code'],
+							'message' => $options['error_message']
+						]
+					);
+				});
+
+			$mock_client->shouldReceive('headObject')
+				->andReturnUsing(function($args) use ($options) {
+					throw new \Aws\S3\Exception\S3Exception(
+						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+						new Command('HeadObject'),
+						[
+							'code' => $options['error_code'],
+							'message' => $options['error_message']
+						]
+					);
+				});
+		} else {
+			// Configure successful operations
+			$mock_client->shouldReceive('doesBucketExist')
+				->andReturn(true);
+
+			$mock_client->shouldReceive('getCommand')
+				->andReturnUsing(function($command, $args) {
+					return new Command($command, $args);
+				});
+
+			$mock_client->shouldReceive('execute')
+				->andReturnUsing(function($command) use (&$uploaded_content) {
+					$name = $command->getName();
+					$args = $command->toArray();
+
+					switch ($name) {
+						case 'PutObject':
+							$key = $args['Key'];
+							$uploaded_content[$key] = (string)$args['Body'];
+							return new Result([]);
+						case 'GetObject':
+							$key = $args['Key'];
+							$content = $uploaded_content[$key] ?? 'Test content';
+							return new Result(['Body' => Utils::streamFor($content)]);
+						case 'HeadObject':
+							$key = $args['Key'];
+							if (!isset($uploaded_content[$key])) {
+								throw new \Aws\S3\Exception\S3Exception(
+									'Not Found',
+									$command,
+									['code' => 'NoSuchKey']
+								);
+							}
+							return new Result(['ContentLength' => strlen($uploaded_content[$key])]);
+						case 'DeleteObject':
+							$key = $args['Key'];
+							unset($uploaded_content[$key]);
+							return new Result([]);
+						default:
+							return new Result([]);
 					}
-					return Promise\Create::promiseFor(new Result(['Body' => Utils::streamFor($uploaded_content[$key])]));
+				});
 
-				case 'HeadObject':
+			$mock_client->shouldReceive('putObject')
+				->andReturnUsing(function($args) use (&$uploaded_content) {
+					$key = $args['Key'];
+					$uploaded_content[$key] = (string)$args['Body'];
+					return new Result([]);
+				});
+
+			$mock_client->shouldReceive('getObject')
+				->andReturnUsing(function($args) use (&$uploaded_content) {
+					$key = $args['Key'];
+					$content = $uploaded_content[$key] ?? 'Test content';
+					return new Result(['Body' => Utils::streamFor($content)]);
+				});
+
+			$mock_client->shouldReceive('headObject')
+				->andReturnUsing(function($args) use (&$uploaded_content) {
+					$key = $args['Key'];
 					if (!isset($uploaded_content[$key])) {
-						return Promise\Create::rejectionFor(
-							new \Aws\S3\Exception\S3Exception(
-								'Not Found',
-								$command,
-								['code' => 'NoSuchKey']
-							)
+						throw new \Aws\S3\Exception\S3Exception(
+							'Not Found',
+							new Command('HeadObject'),
+							['code' => 'NoSuchKey']
 						);
 					}
-					return Promise\Create::promiseFor(new Result(['ContentLength' => strlen($uploaded_content[$key])]));
+					return new Result(['ContentLength' => strlen($uploaded_content[$key])]);
+				});
 
-				case 'DeleteObject':
+			$mock_client->shouldReceive('deleteObject')
+				->andReturnUsing(function($args) use (&$uploaded_content) {
+					$key = $args['Key'];
 					unset($uploaded_content[$key]);
-					return Promise\Create::promiseFor(new Result([]));
+					return new Result([]);
+				});
 
-				default:
-					return Promise\Create::promiseFor(new Result([]));
-			}
-		};
+			$mock_client->shouldReceive('deleteMatchingObjects')
+				->andReturnUsing(function($bucket, $prefix) use (&$uploaded_content) {
+					foreach ($uploaded_content as $key => $content) {
+						if (strpos($key, $prefix) === 0) {
+							unset($uploaded_content[$key]);
+						}
+					}
+					return new Result([]);
+				});
+		}
 
-		// Create the S3 client with the mock handler
-		return new S3Client([
-			'version' => 'latest',
-			'region' => $this->default_settings['region'],
-			'credentials' => [
-				'key' => $this->default_settings['key'],
-				'secret' => $this->default_settings['secret']
-			],
-			'handler' => $handler,
-			'use_aws_shared_config_files' => false,
-			'endpoint' => 'http://localhost',
-			'validate' => false
-		]);
+		// Configure the factory to return our mock client
+		$mock_factory->shouldReceive('create')
+			->andReturn($mock_client);
+
+		$mock_factory->shouldReceive('configure_stream_wrapper')
+			->with($mock_client, Mockery::any())
+			->andReturnUsing(function($client, $settings) {
+				S3_Media_Sync_Stream_Wrapper::register($client);
+				stream_context_set_option(stream_context_get_default(), 's3', 'ACL', $settings['object_acl'] ?? 'public-read');
+				stream_context_set_option(stream_context_get_default(), 's3', 'seekable', true);
+			});
+
+		// Replace the real factory with our mock in the global scope
+		$GLOBALS['s3_media_sync_client_factory'] = $mock_factory;
+
+		return $mock_client;
 	}
 
 	/**
@@ -258,6 +364,9 @@ abstract class TestCase extends WPTestCase {
 		$this->settings_handler = new S3_Media_Sync_Settings();
 		$this->settings_handler->update_settings($this->default_settings);
 		$this->s3_media_sync = new S3_Media_Sync($this->settings_handler);
+
+		// Create a default mock client
+		$this->create_mock_s3_client();
 	}
 
 	/**
@@ -266,6 +375,7 @@ abstract class TestCase extends WPTestCase {
 	public function tear_down(): void {
 		parent::tear_down();
 		delete_option('s3_media_sync_settings');
+		unset($GLOBALS['s3_media_sync_client_factory']);
 		Mockery::close();
 	}
 } 
