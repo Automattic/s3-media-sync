@@ -44,8 +44,17 @@ class S3_Media_Sync_Settings {
 		}
 
 		// This check will test the API keys provided
-		$s3_client = new S3_Media_Sync( $this );
-		if ( false === $s3_client->s3()->doesBucketExist( $this->settings['bucket'] ) ) {
+		$factory = new S3_Media_Sync_Client_Factory();
+		try {
+			$s3_client = $factory->create( $this->settings );
+			if ( false === $s3_client->doesBucketExist( $this->settings['bucket'] ) ) {
+				add_settings_error(
+					's3_media_sync_settings',
+					's3-media-sync-settings-error',
+					__( 'The credentials provided are incorrect. The AWS bucket cannot be found.', 's3-media-sync' )
+				);
+			}
+		} catch (\Exception $e) {
 			add_settings_error(
 				's3_media_sync_settings',
 				's3-media-sync-settings-error',
