@@ -107,14 +107,7 @@ class SettingsTest extends TestCase {
 
 		$admin_error_codes = wp_list_pluck( get_settings_errors(), 'code' );
 
-		if ( $should_validate ) {
-			Assert::assertContains( $error_code, $admin_error_codes, 'Settings validation should have failed' );
-		} else {
-			Assert::assertEmpty( $admin_error_codes, 'No validation errors should be present for empty settings' );
-		}
-
-		// Clean up
-		delete_option( 's3_media_sync_settings' );
+		Assert::assertContains( $error_code, $admin_error_codes, 'Settings validation should have failed' );
 	}
 
 	/**

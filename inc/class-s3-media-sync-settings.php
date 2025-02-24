@@ -38,10 +38,41 @@ class S3_Media_Sync_Settings {
 	 * Validate the settings page keys
 	 */
 	public function settings_validation( $input ) {
-		// Only proceed to validate the bucket if all necessary settings are set
-		if ( ! $this->has_required_settings() ) {
-			return $input;
+		$required_keys = [ 'bucket', 'key', 'secret', 'region' ];
+		$missing_keys = [];
+
+		// Check for missing required fields
+		foreach ( $required_keys as $key ) {
+			if ( empty( $input[$key] ) ) {
+				$missing_keys[] = $key;
+			}
 		}
+
+		// If any required fields are missing, add an error and return the old settings
+		if ( !empty($missing_keys) ) {
+			$missing_fields = implode(', ', array_map(function($key) {
+				switch($key) {
+					case 'key': return 'Access Key ID';
+					case 'secret': return 'Secret Access Key';
+					case 'bucket': return 'Bucket Name';
+					case 'region': return 'Region';
+					default: return $key;
+				}
+			}, $missing_keys));
+			
+			add_settings_error(
+				's3_media_sync_settings',
+				's3-media-sync-settings-error',
+				sprintf(
+					__( 'The following required fields are missing: %s', 's3-media-sync' ),
+					$missing_fields
+				)
+			);
+			return $this->settings; // Return old settings
+		}
+
+		// Update the current settings with the new input for validation
+		$this->settings = $input;
 
 		// This check will test the API keys provided
 		$factory = new S3_Media_Sync_Client_Factory();
@@ -53,6 +84,7 @@ class S3_Media_Sync_Settings {
 					's3-media-sync-settings-error',
 					__( 'The credentials provided are incorrect. The AWS bucket cannot be found.', 's3-media-sync' )
 				);
+				return $this->settings; // Return old settings
 			}
 		} catch (\Exception $e) {
 			add_settings_error(
@@ -60,6 +92,7 @@ class S3_Media_Sync_Settings {
 				's3-media-sync-settings-error',
 				__( 'The credentials provided are incorrect. The AWS bucket cannot be found.', 's3-media-sync' )
 			);
+			return $this->settings; // Return old settings
 		}
 
 		return $input;
