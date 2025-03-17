@@ -11,13 +11,9 @@
 
 define( 'S3_MEDIA_SYNC_FILE', __FILE__ );
 
-// Load AWS SDK
-require_once dirname( __FILE__ ) . '/vendor/autoload.php';
-
-require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-settings.php';
-require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync.php';
-require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-stream-wrapper.php';
-require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-client-factory.php';
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+	require_once __DIR__ . '/vendor/autoload.php';
+}
 
 if ( defined( 'WP_CLI' ) && class_exists( 'WPCOM_VIP_CLI_Command' ) ) {
 	require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-wp-cli.php';
