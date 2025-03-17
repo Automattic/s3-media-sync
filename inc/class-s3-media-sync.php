@@ -1,25 +1,22 @@
 <?php
 
 class S3_Media_Sync {
-
-	private static $instance;
 	private $settings;
 	private $s3;
+	private $settings_handler;
 
-	/**
-	 *
-	 * @return S3_Media_Sync
-	 */
-	public static function init() {
-		if ( ! self::$instance ) {
-			self::$instance = new S3_Media_Sync();
-		}
-
-		return self::$instance;
+	public function __construct( S3_Media_Sync_Settings $settings_handler ) {
+		$this->settings_handler = $settings_handler;
+		$this->settings         = $this->settings_handler->get_settings();
 	}
 
-	public function __construct() {
-		$this->settings = get_option( 's3_media_sync_settings' );
+	/**
+	 * Get the settings handler instance
+	 *
+	 * @return S3_Media_Sync_Settings
+	 */
+	public function get_settings_handler() {
+		return $this->settings_handler;
 	}
 
 	public function get_s3_bucket() {
@@ -37,14 +34,14 @@ class S3_Media_Sync {
 		// Load the plugin text domain for translation
 		load_plugin_textdomain( 's3-media-sync', false, basename( dirname( __FILE__ ) ) . '/languages/' );
 
-		// Register and configure the stream wrapper
-		$this->register_stream_wrapper();
+		// Initialize settings
+		$this->settings_handler->init();
 
-		// Register and render the settings screen
-		add_action( 'admin_menu', [ $this, 'register_menu_settings' ] );
-		add_action( 'admin_init', [ $this, 'settings_screeen_init' ] );
+		// Only proceed with stream wrapper and hooks if we have all required settings
+		if ( $this->settings_handler->has_required_settings() && isset($this->settings['region']) && !empty($this->settings['region']) ) {
+			// Register and configure the stream wrapper
+			$this->register_stream_wrapper();
 
-		if ( $this->has_required_settings() ) {
 			// Perform on-the-fly media syncs by hooking into these actions
 			add_filter( 'wp_handle_upload', [ $this, 'add_attachment_to_s3' ], 10, 2 );
 			add_action( 'delete_attachment', [ $this, 'delete_attachment_from_s3' ], 10, 1 );
@@ -139,7 +136,12 @@ class S3_Media_Sync {
 	 */
 	public function register_stream_wrapper() {
 		// Only proceed to register the stream wrapper if all required fields are set
-		if ( ! $this->has_required_settings() ) {
+		if ( ! $this->settings_handler->has_required_settings() ) {
+			return;
+		}
+
+		// Ensure we have all required settings for S3 client
+		if ( ! isset($this->settings['region']) || empty($this->settings['region']) ) {
 			return;
 		}
 
@@ -148,172 +150,6 @@ class S3_Media_Sync {
 		$objectAcl = isset( $this->settings['object_acl'] ) ? sanitize_text_field( $this->settings['object_acl'] ) : 'public-read';
 		stream_context_set_option( stream_context_get_default(), 's3', 'ACL', $objectAcl );
 		stream_context_set_option( stream_context_get_default(), 's3', 'seekable', true );
-	}
-
-	/**
-	 * Register the submenu for updating the settings
-	 */
-	public function register_menu_settings() {
-		add_submenu_page(
-			'options-general.php',
-			__( 'S3 Media Sync', 's3-media-sync' ),
-			__( 'S3 Media Sync', 's3-media-sync' ),
-			'manage_options',
-			's3_media_sync',
-			[ $this, 'render_settings_page' ]
-		);
-	}
-
-	/**
-	 * Validate the settings page keys
-	 */
-	function s3_media_sync_settings_validation( $input ) {
-		// Only proceed to validate the bucket if all necessary settings are set
-		if ( ! $this->has_required_settings() ) {
-			return $input;
-		}
-
-		// This check will test the API keys provided
-		if ( false === $this->s3()->doesBucketExist( $this->settings['bucket'] ) ) {
-			add_settings_error(
-				's3_media_sync_settings',
-				's3-media-sync-settings-error',
-				__( 'The credentials provided are incorrect. The AWS bucket cannot be found.', 's3-media-sync' )
-			);
-		}
-
-		return $input;
-	}
-
-	/**
-	 * Render the settings page
-	 */
-	public function render_settings_page() {
-		?>
-		<div class="wrap">
-			<h2>S3 Media Sync</h2>
-				<form action='options.php' method='post'>
-					<?php settings_fields( 's3_media_sync_settings_page' ); ?>
-					<?php do_settings_sections( 's3_media_sync_settings_page' ); ?>
-					<?php submit_button(); ?>
-				</form>
-		</div>
-		<?php
-	}
-
-	public function settings_screeen_init() {
-		// Register the settings page
-		register_setting( 's3_media_sync_settings_page', 's3_media_sync_settings', [ $this, 's3_media_sync_settings_validation' ] );
-
-		// Add the settings fields
-		add_settings_section(
-			's3_media_sync_settings',
-			__( 'Settings', 's3-media-sync' ),
-			null,
-			's3_media_sync_settings_page'
-		);
-
-		// Setting: S3 Access Key ID
-		add_settings_field(
-			'key',
-			__( 'S3 Access Key ID', 's3-media-sync' ),
-			[ $this, 's3_key_render' ],
-			's3_media_sync_settings_page',
-			's3_media_sync_settings',
-			[ 'label_for' => 's3_media_sync_settings[key]' ]
-		);
-
-		// Setting: S3 Secret Access Key
-		add_settings_field(
-			'secret',
-			__( 'S3 Secret Access Key', 's3-media-sync' ),
-			[ $this, 's3_secret_render' ],
-			's3_media_sync_settings_page',
-			's3_media_sync_settings',
-			[ 'label_for' => 's3_media_sync_settings[secret]' ]
-		);
-
-		// Setting: S3 Bucket Name
-		add_settings_field(
-			'bucket',
-			__( 'S3 Bucket Name', 's3-media-sync' ),
-			[ $this, 's3_bucket_render' ],
-			's3_media_sync_settings_page',
-			's3_media_sync_settings',
-			[ 'label_for' => 's3_media_sync_settings[bucket]' ]
-		);
-
-		// Setting: S3 Region
-		add_settings_field(
-			'region',
-			__( 'S3 Region', 's3-media-sync' ),
-			[ $this, 's3_region_render' ],
-			's3_media_sync_settings_page',
-			's3_media_sync_settings',
-			[ 'label_for' => 's3_media_sync_settings[region]' ]
-		);
-
-		// Setting: S3 Object ACL
-		add_settings_field(
-			'object_acl',
-			__( 'S3 Object ACL', 's3-media-sync' ),
-			[ $this, 's3_object_acl_render' ],
-			's3_media_sync_settings_page',
-			's3_media_sync_settings',
-			[ 'label_for' => 's3_media_sync_settings[object_acl]' ]
-		);
-	}
-
-	// Render the S3 Access Key ID text field
-	public function s3_key_render() {
-		$options = get_option( 's3_media_sync_settings' );
-		$value   = ! empty( $options['key'] ) ? $options['key'] : '';
-		printf(
-			'<input type="text" name="s3_media_sync_settings[key]" id="s3_media_sync_settings[key]" value="%s">',
-			esc_attr( $value )
-		);
-	}
-
-	// Render the S3 Secret Access Key text field
-	public function s3_secret_render() {
-		$options = get_option( 's3_media_sync_settings' );
-		$value   = ! empty( $options['secret'] ) ? $options['secret'] : '';
-		printf(
-			'<input type="text" name="s3_media_sync_settings[secret]" id="s3_media_sync_settings[secret]" value="%s">',
-			esc_attr( $value )
-		);
-	}
-
-	// Render the S3 Bucket Name text field
-	public function s3_bucket_render() {
-		$options = get_option( 's3_media_sync_settings' );
-		$value   = ! empty( $options['bucket'] ) ? $options['bucket'] : '';
-		printf(
-			'<input type="text" name="s3_media_sync_settings[bucket]" id="s3_media_sync_settings[bucket]" value="%s">',
-			esc_attr( $value )
-		);
-	}
-
-	// Render the S3 Region text field
-	public function s3_region_render() {
-		$options = get_option( 's3_media_sync_settings' );
-		$value   = ! empty( $options['region'] ) ? $options['region'] : '';
-		printf(
-			'<input type="text" name="s3_media_sync_settings[region]" id="s3_media_sync_settings[region]" value="%s">',
-			esc_attr( $value )
-		);
-	}
-
-	// Render the S3 Object ACL dropdown
-	public function s3_object_acl_render() {
-		$options = get_option('s3_media_sync_settings');
-		$value = !empty($options['object_acl']) ? $options['object_acl'] : '';
-		?>
-		<select name="s3_media_sync_settings[object_acl]" id="s3_media_sync_settings[object_acl]">
-			<option<?php selected($value, 'private', true); ?>><?php _e('private', 's3-media-sync'); ?></option>
-			<option<?php selected($value, 'public-read', true); ?>><?php _e('public-read', 's3-media-sync'); ?></option>
-		</select>
-		<?php
 	}
 
 	/**
@@ -328,12 +164,12 @@ class S3_Media_Sync {
 
 		$params = array( 'version' => 'latest' );
 
-		if ( $this->settings['key'] && $this->settings['secret'] ) {
+		if ( isset($this->settings['key']) && isset($this->settings['secret']) && $this->settings['key'] && $this->settings['secret'] ) {
 			$params['credentials']['key']    = $this->settings['key'];
 			$params['credentials']['secret'] = $this->settings['secret'];
 		}
 
-		if ( $this->settings['region'] ) {
+		if ( isset($this->settings['region']) && $this->settings['region'] ) {
 			$params['signature'] = 'v4';
 			$params['region']    = $this->settings['region'];
 		}
@@ -352,22 +188,5 @@ class S3_Media_Sync {
 		$this->s3 = Aws\S3\S3Client::factory( $params );
 
 		return $this->s3;
-	}
-
-	/**
-	 * Check if all required s3 bucket settings are set.
-	 *
-	 * @return bool
-	 */
-	private function has_required_settings() {
-		$required_keys = [ 'bucket', 'key', 'secret', 'region' ];
-
-		foreach ( $required_keys as $key ) {
-			if ( empty( $this->settings[ $key ] ) ) {
-				return false;
-			}
-		}
-
-		return true;
 	}
 }

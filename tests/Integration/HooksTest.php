@@ -15,8 +15,9 @@ use S3_Media_Sync\Tests\TestCase;
  *
  * @group integration
  * @group hooks
- * @covers S3_Media_Sync
- * @uses S3_Media_Sync_Stream_Wrapper
+ * @covers \S3_Media_Sync
+ * @uses \S3_Media_Sync_Stream_Wrapper
+ * @uses \S3_Media_Sync_Settings
  */
 class HooksTest extends TestCase {
 
@@ -80,7 +81,6 @@ class HooksTest extends TestCase {
 	 * 
 	 * @param array $settings            The settings to test with.
 	 * @param bool  $should_be_registered Whether the hooks should be registered.
-	 * @throws \ReflectionException If reflection fails.
 	 */
 	public function test_media_syncs_hooks_registration( array $settings, bool $should_be_registered ): void {
 		$this::set_private_property(

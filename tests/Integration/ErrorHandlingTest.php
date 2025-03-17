@@ -10,6 +10,7 @@ namespace S3_Media_Sync\Tests\Integration;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync;
+use S3_Media_Sync_Settings;
 use S3_Media_Sync\Tests\TestCase;
 
 /**
@@ -17,8 +18,9 @@ use S3_Media_Sync\Tests\TestCase;
  *
  * @group integration
  * @group error-handling
- * @covers S3_Media_Sync
- * @uses S3_Media_Sync_Stream_Wrapper
+ * @covers \S3_Media_Sync
+ * @uses \S3_Media_Sync_Stream_Wrapper
+ * @uses \S3_Media_Sync_Settings
  */
 class ErrorHandlingTest extends TestCase {
 
@@ -29,13 +31,9 @@ class ErrorHandlingTest extends TestCase {
 	public function set_up(): void {
 		parent::set_up();
 		
-		$this->s3_media_sync = new S3_Media_Sync();
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$this->default_settings
-		);
+		$this->settings_handler = new S3_Media_Sync_Settings();
+		$this->settings_handler->update_settings($this->default_settings);
+		$this->s3_media_sync = new S3_Media_Sync($this->settings_handler);
 		
 		$this->test_file = $this->create_temp_file();
 	}
