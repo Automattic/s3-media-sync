@@ -17,6 +17,14 @@
 		"yoast/wp-test-utils": "^1.2",
 		"mockery/mockery": "^1.6"
 	},
+	"autoload": {
+		"classmap": [
+			"inc/"
+		],
+		"exclude-from-classmap": [
+			"inc/class-s3-media-sync-wp-cli.php"
+		]
+	},
 	"autoload-dev": {
 		"psr-4": {
 			"S3_Media_Sync\\Tests\\": "tests/"

@@ -347,9 +347,7 @@ abstract class TestCase extends WPTestCase {
 	public function set_up(): void {
 		parent::set_up();
 
-		// Ensure the AWS SDK can be loaded.
-		if ( ! class_exists( '\\Aws\\S3\\S3Client' ) ) {
-			// Require AWS Autoloader file.
+		if ( file_exists( dirname( __FILE__, 2 ) . '/vendor/autoload.php' ) ) {
 			require_once dirname( __FILE__, 2 ) . '/vendor/autoload.php';
 		}
 
