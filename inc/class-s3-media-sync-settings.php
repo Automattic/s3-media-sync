@@ -74,6 +74,10 @@ class S3_Media_Sync_Settings {
 
 		// Normalize use_acl option (convert checkbox to boolean)
 		$input['use_acl'] = isset($input['use_acl']) ? (bool)$input['use_acl'] : false;
+		
+		// Normalize sync_thumbnails option (convert checkbox to boolean)
+		// For checkboxes, if they're unchecked, they won't be present in the input at all
+		$input['sync_thumbnails'] = isset($input['sync_thumbnails']) ? true : false;
 
 		// Update the current settings with the new input for validation
 		$this->settings = $input;
@@ -349,6 +353,16 @@ class S3_Media_Sync_Settings {
 			's3_media_sync_settings',
 			[ 'label_for' => 's3_media_sync_settings[object_acl]' ]
 		);
+
+		// Setting: Sync Thumbnails
+		add_settings_field(
+			'sync_thumbnails',
+			__( 'Sync Thumbnails', 's3-media-sync' ),
+			[ $this, 's3_sync_thumbnails_render' ],
+			's3_media_sync_settings_page',
+			's3_media_sync_settings',
+			[ 'label_for' => 's3_media_sync_settings[sync_thumbnails]' ]
+		);
 	}
 
 	// Render the S3 Access Key ID text field
@@ -429,6 +443,22 @@ class S3_Media_Sync_Settings {
 				$('#s3_media_sync_settings\\[use_acl\\]').on('change', toggleAclVisibility);
 			});
 		</script>
+		<?php
+	}
+
+	// Render the Sync Thumbnails checkbox
+	public function s3_sync_thumbnails_render() {
+		$options = get_option('s3_media_sync_settings');
+		// Explicitly check if the setting exists and is false
+		$checked = (isset($options['sync_thumbnails']) && $options['sync_thumbnails'] === false) ? '' : 'checked="checked"';
+		?>
+		<label>
+			<input type="checkbox" name="s3_media_sync_settings[sync_thumbnails]" id="s3_media_sync_settings[sync_thumbnails]" value="1" <?php echo $checked; ?>>
+			<?php _e('Sync image thumbnails and size variations to S3', 's3-media-sync'); ?>
+		</label>
+		<p class="description">
+			<?php _e('When enabled, all image size variations will be uploaded to S3. Disable to only upload the original file for faster uploads.', 's3-media-sync'); ?>
+		</p>
 		<?php
 	}
 

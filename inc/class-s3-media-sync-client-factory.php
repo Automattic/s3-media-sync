@@ -144,7 +144,7 @@ class S3_Media_Sync_Client_Factory {
 	 * @param string $bucket_name Bucket name
 	 * @return bool Whether ACLs are allowed
 	 */
-	protected function does_bucket_allow_acl($client, $bucket_name) {
+	public function does_bucket_allow_acl($client, $bucket_name) {
 		try {
 			// Get the bucket's ownership controls
 			$result = $client->getBucketOwnershipControls([

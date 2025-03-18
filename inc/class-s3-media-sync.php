@@ -61,7 +61,9 @@ class S3_Media_Sync {
 			add_filter( 'wp_update_attachment_metadata', [ $this, 'sync_attachment_metadata' ], 10, 2 );
 			
 			// Debug log to confirm hook registration
-			error_log('S3 Media Sync: Hooks registered for uploads, deletion, image editing, and thumbnail generation');
+			$sync_thumbnails_status = isset($this->settings['sync_thumbnails']) ? 
+			    ($this->settings['sync_thumbnails'] !== false ? 'enabled' : 'disabled') : 'enabled (default)';
+			error_log('S3 Media Sync: Hooks registered for uploads, deletion, image editing, and thumbnail generation. Thumbnail syncing is ' . $sync_thumbnails_status);
 		} else {
 			error_log('S3 Media Sync: Required settings missing - hooks not registered');
 		}
@@ -338,7 +340,13 @@ class S3_Media_Sync {
 
 		// Get file info for logging
 		$file_size = filesize($filename);
-		error_log('S3 Media Sync: Processing image editor file - File: ' . $filename . ', Size: ' . $file_size . ' bytes, MIME: ' . $mime_type . ', Post ID: ' . $post_id);
+		error_log('S3 Media Sync: Processing image editor file - File: ' . $filename . ', Size: ' . $file_size . ' bytes, MIME: ' . $mime_type . ', Post ID: ' . $post_id . ', Size variant: ' . ($size ? $size : 'original'));
+
+		// If this is a size/thumbnail and thumbnail syncing is disabled, skip it
+		if ($size && isset($this->settings['sync_thumbnails']) && $this->settings['sync_thumbnails'] === false) {
+			error_log('S3 Media Sync: Skipping image size "' . $size . '" due to sync_thumbnails setting disabled');
+			return $filename;
+		}
 
 		// Verify S3 is properly configured
 		if (!$this->is_s3_configured()) {
@@ -391,6 +399,12 @@ class S3_Media_Sync {
 	 */
 	public function delete_attachment_from_s3($post_id) {
 		try {
+			// First, get the metadata to find all thumbnails
+			$metadata = wp_get_attachment_metadata($post_id);
+			
+			// Prepare a list of objects to delete
+			$delete_paths = [];
+			
 			// Grab the path for the attachment -- this is the S3 key
 			$upload_dir = wp_upload_dir();
 			$source = $upload_dir['baseurl'];
@@ -404,42 +418,98 @@ class S3_Media_Sync {
 			$relative_path = str_replace($source, '', $attachment_url);
 			
 			// Use the full path with wp-content/uploads prefix to match IAM policy
-			$path = 'wp-content/uploads' . $relative_path;
-			$bucket = $this->get_s3_bucket();
+			$main_path = 'wp-content/uploads' . $relative_path;
+			$delete_paths[] = $main_path;
 			
-			error_log('S3 Media Sync: Deleting attachment from S3: ' . $path);
+			error_log('S3 Media Sync: Preparing to delete attachment from S3: ' . $main_path);
+			
+			// If we have metadata and thumbnails, add them to the delete list
+			if (!empty($metadata) && !empty($metadata['file']) && !empty($metadata['sizes'])) {
+				$file_dir = dirname($metadata['file']);
+				$file_dir = empty($file_dir) ? '' : trailingslashit($file_dir);
+				
+				// Add each thumbnail to the delete list
+				foreach ($metadata['sizes'] as $size => $size_info) {
+					if (!empty($size_info['file'])) {
+						$thumb_path = 'wp-content/uploads/' . $file_dir . $size_info['file'];
+						$delete_paths[] = $thumb_path;
+						error_log('S3 Media Sync: Adding thumbnail for deletion: ' . $thumb_path);
+					}
+				}
+			} else {
+				error_log('S3 Media Sync: No thumbnail metadata found for attachment ID ' . $post_id);
+			}
+			
+			$bucket = $this->get_s3_bucket();
 			
 			// Handle bucket with path prefix
 			if (strpos($bucket, '/') !== false) {
 				$bucket_parts = explode('/', $bucket, 2);
 				$bucket = $bucket_parts[0];
 				$prefix = trailingslashit($bucket_parts[1]);
-				$path = $prefix . $path;
+				
+				// Apply prefix to all paths
+				foreach ($delete_paths as $i => $path) {
+					$delete_paths[$i] = $prefix . $path;
+				}
 			}
 			
-			if (empty($path)) {
-				return false;
-			}
-			
-			// List objects with matching prefix to delete
+			// List objects with matching prefix to capture any other variations
 			$factory = $this->get_client_factory();
 			$s3_client = $factory->create($this->settings);
 			
-			$objects = $s3_client->listObjects([
-				'Bucket' => $bucket,
-				'Prefix' => $path
-			]);
+			// Create list of objects to delete
+			$delete_objects = [];
 			
-			if (!isset($objects['Contents']) || empty($objects['Contents'])) {
-				error_log('S3 Media Sync: No objects found to delete for path: ' . $path);
-				return true; // Nothing to delete
+			// First check for each specific path we know about
+			foreach ($delete_paths as $path) {
+				try {
+					// Check if object exists before adding to delete list
+					$s3_client->headObject([
+						'Bucket' => $bucket,
+						'Key' => $path
+					]);
+					$delete_objects[] = ['Key' => $path];
+					error_log('S3 Media Sync: Object exists, adding for deletion: ' . $path);
+				} catch (\Exception $e) {
+					error_log('S3 Media Sync: Object does not exist or cannot be accessed: ' . $path);
+				}
 			}
 			
-			// Prepare objects for deletion
-			$delete_objects = [];
-			foreach ($objects['Contents'] as $object) {
-				$delete_objects[] = ['Key' => $object['Key']];
-				error_log('S3 Media Sync: Adding object for deletion: ' . $object['Key']);
+			// Also list the directory to catch any files we might have missed
+			// This helps with edited images or other variants
+			$base_prefix = dirname($main_path);
+			$base_prefix = trailingslashit($base_prefix);
+			$filename = basename($main_path);
+			$filename_without_ext = pathinfo($filename, PATHINFO_FILENAME);
+			
+			try {
+				$objects = $s3_client->listObjects([
+					'Bucket' => $bucket,
+					'Prefix' => $base_prefix
+				]);
+				
+				if (isset($objects['Contents']) && !empty($objects['Contents'])) {
+					foreach ($objects['Contents'] as $object) {
+						$object_key = $object['Key'];
+						$object_filename = basename($object_key);
+						
+						// If the object filename contains our base filename, it's likely a variant
+						if (strpos($object_filename, $filename_without_ext) !== false && 
+							!in_array(['Key' => $object_key], $delete_objects)) {
+							$delete_objects[] = ['Key' => $object_key];
+							error_log('S3 Media Sync: Found related object for deletion: ' . $object_key);
+						}
+					}
+				}
+			} catch (\Exception $e) {
+				error_log('S3 Media Sync: Error listing objects: ' . $e->getMessage());
+			}
+			
+			// If nothing to delete, return success
+			if (empty($delete_objects)) {
+				error_log('S3 Media Sync: No objects found to delete');
+				return true;
 			}
 			
 			// Delete the objects
@@ -471,11 +541,6 @@ class S3_Media_Sync {
 			return $metadata;
 		}
 
-		// Skip if there are no sizes to process
-		if (empty($metadata['sizes']) || !is_array($metadata['sizes'])) {
-			return $metadata;
-		}
-
 		// Skip if the main file path is missing
 		if (empty($metadata['file'])) {
 			error_log('S3 Media Sync: No file path in metadata for attachment ID ' . $attachment_id);
@@ -498,9 +563,15 @@ class S3_Media_Sync {
 			$base_dir = $wp_uploads['basedir'];
 			$file_dir = dirname($metadata['file']);
 			
-			error_log('S3 Media Sync: Processing attachment metadata for ID ' . $attachment_id . ' with ' . count($metadata['sizes']) . ' sizes');
+			// Check if we're syncing thumbnails
+			$sync_thumbnails = isset($this->settings['sync_thumbnails']) ? $this->settings['sync_thumbnails'] !== false : true;
 			
-			// Also sync the original file if it exists and wasn't previously uploaded
+			if (!empty($metadata['sizes']) && is_array($metadata['sizes'])) {
+				error_log('S3 Media Sync: Processing attachment metadata for ID ' . $attachment_id . ' with ' . 
+				    count($metadata['sizes']) . ' sizes. Thumbnail syncing is ' . ($sync_thumbnails ? 'enabled' : 'disabled'));
+			}
+			
+			// Always sync the original file if it exists and wasn't previously uploaded
 			$original_file_path = trailingslashit($base_dir) . $metadata['file'];
 			
 			if (file_exists($original_file_path)) {
@@ -522,37 +593,42 @@ class S3_Media_Sync {
 				}
 			}
 			
-			// Process each size
-			foreach ($metadata['sizes'] as $size => $size_info) {
-				if (empty($size_info['file'])) {
-					continue;
+			// Process thumbnails and size variations only if the setting is enabled
+			if ($sync_thumbnails && !empty($metadata['sizes']) && is_array($metadata['sizes'])) {
+				// Process each size
+				foreach ($metadata['sizes'] as $size => $size_info) {
+					if (empty($size_info['file'])) {
+						continue;
+					}
+					
+					// Construct source and destination paths
+					$size_file_path = trailingslashit($base_dir) . (empty($file_dir) ? '' : trailingslashit($file_dir)) . $size_info['file'];
+					$size_s3_key = 'wp-content/uploads/' . (empty($file_dir) ? '' : trailingslashit($file_dir)) . $size_info['file'];
+					
+					if (!file_exists($size_file_path)) {
+						error_log("S3 Media Sync: Size file doesn't exist: " . $size_file_path);
+						continue;
+					}
+					
+					error_log('S3 Media Sync: Processing size ' . $size . ': ' . $size_file_path . ' -> S3:' . $size_s3_key);
+					
+					// First try using stream wrapper
+					$uploaded = $this->try_stream_wrapper_upload($s3_client, $size_file_path, $size_s3_key);
+					
+					// If stream wrapper failed, try direct API
+					if (!$uploaded) {
+						error_log('S3 Media Sync: Stream wrapper upload failed for size ' . $size . ', trying direct API');
+						$uploaded = $this->try_direct_s3_upload($s3_client, $size_file_path, $size_s3_key);
+					}
+					
+					if ($uploaded) {
+						error_log('S3 Media Sync: Successfully uploaded size ' . $size . ' to S3');
+					} else {
+						error_log('S3 Media Sync: Failed to upload size ' . $size . ' to S3 after all attempts');
+					}
 				}
-				
-				// Construct source and destination paths
-				$size_file_path = trailingslashit($base_dir) . (empty($file_dir) ? '' : trailingslashit($file_dir)) . $size_info['file'];
-				$size_s3_key = 'wp-content/uploads/' . (empty($file_dir) ? '' : trailingslashit($file_dir)) . $size_info['file'];
-				
-				if (!file_exists($size_file_path)) {
-					error_log("S3 Media Sync: Size file doesn't exist: " . $size_file_path);
-					continue;
-				}
-				
-				error_log('S3 Media Sync: Processing size ' . $size . ': ' . $size_file_path . ' -> S3:' . $size_s3_key);
-				
-				// First try using stream wrapper
-				$uploaded = $this->try_stream_wrapper_upload($s3_client, $size_file_path, $size_s3_key);
-				
-				// If stream wrapper failed, try direct API
-				if (!$uploaded) {
-					error_log('S3 Media Sync: Stream wrapper upload failed for size ' . $size . ', trying direct API');
-					$uploaded = $this->try_direct_s3_upload($s3_client, $size_file_path, $size_s3_key);
-				}
-				
-				if ($uploaded) {
-					error_log('S3 Media Sync: Successfully uploaded size ' . $size . ' to S3');
-				} else {
-					error_log('S3 Media Sync: Failed to upload size ' . $size . ' to S3 after all attempts');
-				}
+			} else if (!$sync_thumbnails && !empty($metadata['sizes'])) {
+				error_log('S3 Media Sync: Skipping ' . count($metadata['sizes']) . ' thumbnail sizes due to sync_thumbnails setting disabled');
 			}
 		} catch (\Exception $e) {
 			error_log('S3 Media Sync metadata sync exception: ' . $e->getMessage());
