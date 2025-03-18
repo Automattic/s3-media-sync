@@ -62,25 +62,16 @@ class FileDeleteTest extends TestCase {
 	 * @param array $test_data The test data.
 	 */
 	public function test_delete_attachment_from_s3( array $test_data ): void {
-		// Set up the plugin with mock client
-		$settings = $this->default_settings;
-		$settings['bucket'] = $test_data['bucket'];
+		// Update settings with test bucket
+		$this->settings_handler->update_settings(array_merge(
+			$this->default_settings,
+			['bucket' => $test_data['bucket']]
+		));
 
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$settings
-		);
-
+		// Create a mock S3 client
 		$s3_client = $this->create_mock_s3_client();
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
 
+		// Set up the plugin
 		$this->s3_media_sync->setup();
 
 		// Create a test file and simulate WordPress upload
@@ -135,30 +126,20 @@ class FileDeleteTest extends TestCase {
 	 * @dataProvider data_provider_file_deletions
 	 */
 	public function test_delete_attachment_error_handling( array $test_data ): void {
-		// Set up the plugin with mock client that will fail deletions
-		$settings = $this->default_settings;
-		$settings['bucket'] = $test_data['bucket'];
+		// Update settings with test bucket
+		$this->settings_handler->update_settings(array_merge(
+			$this->default_settings,
+			['bucket' => $test_data['bucket']]
+		));
 
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$settings
-		);
-
+		// Create a mock S3 client that will fail deletions
 		$s3_client = $this->create_mock_s3_client([
 			'error_code' => 'AccessDenied',
 			'error_message' => 'Access Denied',
 			'should_succeed' => false
 		]);
 
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
-
+		// Set up the plugin
 		$this->s3_media_sync->setup();
 
 		// Create a test file and simulate WordPress upload

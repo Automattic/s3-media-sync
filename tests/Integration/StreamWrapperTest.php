@@ -54,13 +54,7 @@ class StreamWrapperTest extends TestCase {
 	 * @param array $settings The settings to test with.
 	 */
 	public function test_stream_wrapper_registered( array $settings ): void {
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$settings
-		);
-
+		$this->settings_handler->update_settings($settings);
 		$this->s3_media_sync->setup();
 
 		Assert::assertContains( 's3', stream_get_wrappers() );
@@ -75,59 +69,8 @@ class StreamWrapperTest extends TestCase {
 	 */
 	public function test_stream_wrapper_functionality( array $settings ): void {
 		// Set up the plugin with mock client.
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$settings
-		);
-
-		// Track file existence state
-		$file_exists = false;
-
-		// Create a custom handler for the mock S3 client
-		$handler = function ($command, $request) use (&$file_exists) {
-			if ($command->getName() === 'DeleteObject') {
-				$file_exists = false;
-				return Promise\Create::promiseFor(new Result([]));
-			} elseif ($command->getName() === 'HeadObject') {
-				if (!$file_exists) {
-					return Promise\Create::rejectionFor(
-						new S3Exception(
-							'Not Found',
-							$command,
-							['code' => 'NoSuchKey']
-						)
-					);
-				}
-				return Promise\Create::promiseFor(new Result(['ContentLength' => 11]));
-			} elseif ($command->getName() === 'PutObject') {
-				$file_exists = true;
-				return Promise\Create::promiseFor(new Result([]));
-			}
-			return Promise\Create::promiseFor(new Result(['Body' => Utils::streamFor('Test content')]));
-		};
-
-		$s3_client = new S3Client([
-			'version' => 'latest',
-			'region' => $settings['region'],
-			'credentials' => [
-				'key' => $settings['key'],
-				'secret' => $settings['secret']
-			],
-			'handler' => $handler,
-			'use_aws_shared_config_files' => false,
-			'endpoint' => 'http://localhost',
-			'validate' => false
-		]);
-
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
-
+		$this->settings_handler->update_settings($settings);
+		$this->create_mock_s3_client();
 		$this->s3_media_sync->setup();
 
 		// Test file operations.

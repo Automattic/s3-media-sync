@@ -80,22 +80,10 @@ class BulkOperationsTest extends TestCase {
 	 * @param array $test_data The test data.
 	 */
 	public function test_bulk_upload_syncs_to_s3( array $test_data ): void {
-		// Set up the plugin with mock client.
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$this->default_settings
-		);
-
+		// Create a mock S3 client
 		$s3_client = $this->create_mock_s3_client();
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
 
+		// Set up the plugin
 		$this->s3_media_sync->setup();
 
 		$test_files = [];
@@ -140,27 +128,14 @@ class BulkOperationsTest extends TestCase {
 	 * @dataProvider data_provider_bulk_operations
 	 */
 	public function test_bulk_upload_error_handling( array $test_data ): void {
-		// Set up the plugin with mock client that will fail uploads.
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$this->default_settings
-		);
-
+		// Create a mock S3 client that will fail uploads
 		$s3_client = $this->create_mock_s3_client([
 			'error_code' => 'AccessDenied',
 			'error_message' => 'Access Denied',
 			'should_succeed' => false
 		]);
 
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
-
+		// Set up the plugin
 		$this->s3_media_sync->setup();
 
 		$test_files = [];

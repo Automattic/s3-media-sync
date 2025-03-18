@@ -64,21 +64,15 @@ class ErrorHandlingTest extends TestCase {
 	 * @dataProvider data_provider_error_scenarios
 	 */
 	public function test_error_handling_during_operations($error_code, $error_message) {
+		// Create a mock S3 client that will fail operations
 		$s3_client = $this->create_mock_s3_client([
 			'error_code' => $error_code,
 			'error_message' => $error_message,
 			'should_succeed' => false
 		]);
 
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
-
-		// Register the stream wrapper
-		$this->s3_media_sync->register_stream_wrapper();
+		// Set up the plugin
+		$this->s3_media_sync->setup();
 
 		$upload = $this->create_test_upload($this->test_file);
 		
@@ -98,21 +92,15 @@ class ErrorHandlingTest extends TestCase {
 	 * @dataProvider data_provider_error_scenarios
 	 */
 	public function test_stream_wrapper_error_handling($error_code, $error_message) {
+		// Create a mock S3 client that will fail operations
 		$s3_client = $this->create_mock_s3_client([
 			'error_code' => $error_code,
 			'error_message' => $error_message,
 			'should_succeed' => false
 		]);
 
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			's3',
-			$s3_client
-		);
-
-		// Register the stream wrapper
-		$this->s3_media_sync->register_stream_wrapper();
+		// Set up the plugin
+		$this->s3_media_sync->setup();
 
 		$s3_path = 's3://' . $this->default_settings['bucket'] . '/test.txt';
 		
