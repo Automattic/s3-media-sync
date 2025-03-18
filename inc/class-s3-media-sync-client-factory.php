@@ -36,7 +36,8 @@ class S3_Media_Sync_Client_Factory {
 		$params = [
 			'version' => 'latest',
 			'signature_version' => 'v4',
-			'region' => $settings['region']
+			'region' => $settings['region'],
+			'endpoint' => "https://s3.{$settings['region']}.amazonaws.com"
 		];
 
 		if ( isset( $settings['key'] ) && isset( $settings['secret'] ) && $settings['key'] && $settings['secret'] ) {
