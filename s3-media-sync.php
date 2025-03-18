@@ -25,7 +25,9 @@ add_action(
 	'plugins_loaded',
 	function() {
 		$settings_handler = new S3_Media_Sync_Settings();
-		$s3_media_sync = new S3_Media_Sync( $settings_handler );
+		$settings = $settings_handler->get_settings();
+		$tester = new S3_Media_Sync_Tester($settings);
+		$s3_media_sync = new S3_Media_Sync($settings_handler);
 		$s3_media_sync->setup();
 	}
 );
