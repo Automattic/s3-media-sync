@@ -1,154 +1,46 @@
 # S3 Media Sync
 
-This plugin syncs the `uploads` directory of a VIP Platform WordPress environment to an AWS S3 instance.
+A WordPress plugin that syncs media uploads to Amazon S3, providing reliable cloud storage for your WordPress media library.
 
-Props to [S3-Uploads](https://github.com/humanmade/S3-Uploads/) and [Human Made](https://hmn.md/) for creating much of the functionality: https://github.com/humanmade/S3-Uploads
+## Overview
 
-## Setup
+S3 Media Sync syncs the `uploads` directory of a WordPress environment to an AWS S3 instance, ensuring your media files are safely stored and easily accessible. This plugin is ideal for WordPress sites that need:
 
-### Build the plugin
+- Cloud-based media storage
+- Better reliability and scalability for media files
+- Improved performance for media-heavy sites
 
-This plugin uses [composer](https://getcomposer.org/) as a package manager. After downloading the plugin (as a ZIP file or via `git pull`) run one of the following commands:
+*Props to [S3-Uploads](https://github.com/humanmade/S3-Uploads/) and [Human Made](https://hmn.md/) for creating much of the functionality on which this plugin is based.*
 
-* For production: `composer install --no-dev --optimize-autoloader` 
-* For development: `composer install` 
+## Key Features
 
-Running one of the above commands will create a `vendor` directory which is required for the plugin to function correctly. Applications that are using CI/CD already run one of these commands automatically and can skip this step.
+- **Automatic Syncing**: Automatically uploads media files to S3 as they're added to WordPress
+- **WP-CLI Integration**: Command-line tools for bulk operations and management
+- **Configurable Storage**: Support for custom bucket paths and AWS regions
+- **Simple Setup**: Easy-to-use settings page for configuration
 
-### Activate the plugin
+## Documentation
 
-* [Commit the plugin](https://docs.wpvip.com/technical-references/installing-plugins-best-practices/) to your application's `plugins` directory.
-* Activate the plugin through code or within the WordPress Admin dashboard.
-* [Create an IAM user with Programmatic Access](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html).
-* Enter the provided AWS S3 API keys on the plugins's Settings page.
-* Backfill the uploads directory on AWS by running the following command: 
+For detailed information, please see the documentation in the `docs` directory:
 
-```sh
-wp s3-media upload-all --url=example-site.com
-```
+- [Setup Guide](docs/setup.md) - How to install and configure the plugin
+- [AWS Setup Guide](docs/aws-setup-guide.md) - Instructions for setting up AWS permissions
+- [WP-CLI Commands](docs/wp-cli-commands.md) - Available command-line tools
+- [Development Guide](docs/development.md) - Information for developers
+- [FAQ](docs/faq.md) - Frequently asked questions
 
-## WP-CLI Commands
+## Quick Start
 
-This plugin provides several WP-CLI commands for managing media uploads to S3.
+1. Install and activate the plugin
+2. Configure AWS credentials in the settings page
+3. Start uploading media to WordPress - it will automatically sync to S3
 
-### Upload a Single Attachment
-
-To upload a single attachment to S3, use the following command:
-
-```sh
-wp s3-media upload <attachment_id>
-```
-
-**Example:**
-
-```sh
-wp s3-media upload 123
-```
-
-### Upload All Validated Media
-
-To upload all validated media to S3, use the command:
-
-```sh
-wp s3-media upload-all [--threads=<number>]
-```
-
-**Options:**
-- `--threads=<number>`: The number of concurrent threads to use for uploading. Defaults to 10 (range: 1-10).
-
-**Example:**
-
-```sh
-wp s3-media upload-all --threads=5
-```
-
-### Remove Files from S3
-
-To remove files from S3, use the command:
-
-```sh
-wp s3-media rm <path> [--regex=<regex>]
-```
-
-**Options:**
-- `<path>`: The path of the file or directory to remove from S3.
-- `--regex=<regex>`: Optional regex pattern to match files for deletion.
-
-**Example:**
-
-```sh
-wp s3-media rm path/to/file.jpg
-```
-
-## Development
-
-### Integration Tests
-
-Start your local development environment of choice and run the `bin/install-wp-tests.sh` script to set up the
-database and install a copy of WordPress in your computer's `/tmp` directory.
-
-### Setup
-
-```bash
-bash bin/install-wp-tests.sh <db-name> <db-user> <db-pass> [db-host] [wp-version] [skip-database-creation]
-```
-
-#### For VVV
-
-```bash
-bash bin/install-wp-tests.sh s3_media_sync_test root root localhost latest
-```
-
-#### For Local
-
-```bash
-bash bin/install-wp-tests.sh s3_media_sync_test root root localhost:"<path_to_sock>" latest
-```
-
-#### For VIP Local Development Environment
-
-```bash
-bash bin/install-wp-tests.sh s3_media_sync_test root "" 127.0.0.1:"<port>" latest 
-```
-
-#### Troubleshooting
-
-Try deleting your tmp `/wordpress/` and `/wordpress-tests-lib/` folders if you're seeing missing file errors related to
-these directories.
-
-### Running Tests
-
-To run all tests:
-
-```sh
-composer test
-```
-
-## FAQ
-
-*How can I upload media to a subdirectory in S3?*
-
-As an example, you already have a bucket named `my-awesome-site` but you want all of your media to go into a `preprod` subdirectory of that bucket. To configure media to upload to that subdirectory, go to the S3 Media Sync settings page and enter the following for the `S3 Bucket Name` field:
-
-```
-my-awesome-site/preprod
-```
-
-Then, all media will automatically be kept in-sync within `my-awesome-site/preprod/wp-content/uploads`. 
-
-*How can I confirm if all of the attachments were uploaded?*
-
-You can check which attachments were skipped by running the following command:
-
-```sh
-wp vip migration validate-attachments invalid-attachments.csv --url=example-site.com
-```
-
-The generated log file will be available at `invalid-attachments.csv`. The full command can be found here:
-
-https://github.com/Automattic/vip-go-mu-plugins/blob/master/wp-cli/vip-migrations.php#L165-L187
-
+For full installation instructions, see the [Setup Guide](docs/setup.md).
 
 ## Change Log
 
 [View the change log](https://github.com/Automattic/s3-media-sync/blob/master/CHANGELOG.md).
+
+## Support
+
+For issues and feature requests, please [create an issue](https://github.com/Automattic/s3-media-sync/issues) on the GitHub repository.
