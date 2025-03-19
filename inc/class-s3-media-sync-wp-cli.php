@@ -18,7 +18,7 @@ use \WP_CLI\Utils;
  *     # Remove files from S3.
  *     $ wp s3-media rm <path> [--regex=<regex>]
  */
-class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
+class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 
 	/**
 	 * Upload a single attachment to S3
@@ -187,7 +187,8 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 				}
 			}
 			// Pause and clear caches to free up memory
-			$this->vip_inmemory_cleanup();
+			$this->reset_local_object_cache();
+			$this->reset_db_query_log();
 			sleep( 1 );
 			$offset += $limit;
 		} while ( count( $attachments ) );
@@ -252,6 +253,45 @@ class S3_Media_Sync_WP_CLI_Command extends WPCOM_VIP_CLI_Command {
 		}
 		WP_CLI::success( sprintf( 'Successfully deleted %s', $prefix ) );
 	}
-}
 
-WP_CLI::add_command( 's3-media', 'S3_Media_Sync_WP_CLI_Command' );
+
+	/**
+	 * Reset the local WordPress object cache.
+	 *
+	 * This only cleans the local cache in WP_Object_Cache, without
+	 * affecting memcache.
+	 */
+	private function reset_local_object_cache() {
+		global $wp_object_cache;
+
+		if ( ! is_object( $wp_object_cache ) ) {
+			return;
+		}
+
+		$properties = [
+			'group_ops',
+			'memcache_debug',
+			'cache',
+		];
+
+		foreach ( $properties as $property ) {
+			if ( property_exists( $wp_object_cache, $property ) ) {
+				$wp_object_cache->$property = [];
+			}
+		}
+
+		if ( method_exists( $wp_object_cache, '__remoteset' ) ) {
+			$wp_object_cache->__remoteset(); // important
+		}
+	}
+
+	/**
+	 * Reset the WordPress DB query log.
+	 */
+	private function reset_db_query_log() {
+		global $wpdb;
+
+		$wpdb->queries = array();
+	}
+
+}

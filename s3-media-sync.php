@@ -17,8 +17,9 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 	require_once __DIR__ . '/vendor/autoload.php';
 }
 
-if ( defined( 'WP_CLI' ) && class_exists( 'WPCOM_VIP_CLI_Command' ) ) {
+if ( defined( 'WP_CLI' ) ) {
 	require_once dirname( __FILE__ ) . '/inc/class-s3-media-sync-wp-cli.php';
+	WP_CLI::add_command( 's3-media', 'S3_Media_Sync_WP_CLI_Command' );
 }
 
 // Initialize the plugin with dependencies
