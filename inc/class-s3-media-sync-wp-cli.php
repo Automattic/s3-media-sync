@@ -344,6 +344,265 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	}
 
 	/**
+	 * Verify local media files against S3
+	 *
+	 * @synopsis [--verify-size] [--verify-md5] [--fix] [--limit=<number>] [--offset=<number>]
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--verify-size]
+	 * : Whether to verify file sizes match
+	 * ---
+	 * default: true
+	 * ---
+	 *
+	 * [--verify-md5]
+	 * : Whether to verify MD5 checksums match (slower but more accurate)
+	 * ---
+	 * default: false
+	 * ---
+	 *
+	 * [--fix]
+	 * : Automatically upload files that don't match or don't exist on S3
+	 * ---
+	 * default: false
+	 * ---
+	 * 
+	 * [--limit=<number>]
+	 * : Limit the number of attachments to verify
+	 * ---
+	 * default: 100
+	 * ---
+	 *
+	 * [--offset=<number>]
+	 * : Number of attachments to skip
+	 * ---
+	 * default: 0
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Verify file existence and size for 100 attachments
+	 *     $ wp s3-media verify
+	 *
+	 *     # Verify file existence, size, and MD5 checksums, fixing any issues
+	 *     $ wp s3-media verify --verify-md5 --fix
+	 *
+	 *     # Verify a specific batch of attachments
+	 *     $ wp s3-media verify --limit=50 --offset=200
+	 */
+	public function verify( $args, $assoc_args ) {
+		global $wpdb;
+		
+		// Parse arguments
+		$verify_size = isset( $assoc_args['verify-size'] ) ? filter_var( $assoc_args['verify-size'], FILTER_VALIDATE_BOOLEAN ) : true;
+		$verify_md5 = isset( $assoc_args['verify-md5'] ) ? filter_var( $assoc_args['verify-md5'], FILTER_VALIDATE_BOOLEAN ) : false;
+		$fix = isset( $assoc_args['fix'] ) ? filter_var( $assoc_args['fix'], FILTER_VALIDATE_BOOLEAN ) : false;
+		$limit = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
+		$offset = isset( $assoc_args['offset'] ) ? absint( $assoc_args['offset'] ) : 0;
+		
+		// Get S3 client and bucket info
+		$s3 = $this->get_s3_media_sync();
+		$s3_client = $s3->get_s3_client();
+		$bucket = $s3->get_s3_bucket();
+		$bucket_parts = explode( '/', $bucket, 2 );
+		$bucket_name = $bucket_parts[0];
+		$prefix = isset( $bucket_parts[1] ) ? trailingslashit( $bucket_parts[1] ) : '';
+		
+		// Get uploads directory info
+		$uploads = wp_upload_dir();
+		$base_dir = $uploads['basedir'];
+		$base_url = $uploads['baseurl'];
+		
+		// Get a batch of attachments
+		$sql = $wpdb->prepare(
+			"SELECT ID, post_title FROM wp_posts 
+			WHERE post_type = 'attachment' 
+			ORDER BY ID 
+			LIMIT %d OFFSET %d",
+			$limit, $offset
+		);
+		
+		$attachments = $wpdb->get_results( $sql );
+		
+		if ( empty( $attachments ) ) {
+			WP_CLI::warning( 'No attachments found.' );
+			return;
+		}
+		
+		// Initialize counters
+		$count_total = count( $attachments );
+		$count_missing = 0;
+		$count_size_mismatch = 0;
+		$count_md5_mismatch = 0;
+		$count_fixed = 0;
+		
+		// Set up progress bar
+		$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Verifying %d attachments', $count_total ), $count_total );
+		
+		// Track verification details
+		$verification_issues = array();
+		
+		foreach ( $attachments as $attachment ) {
+			$attachment_id = $attachment->ID;
+			$attachment_url = wp_get_attachment_url( $attachment_id );
+			
+			if ( empty( $attachment_url ) ) {
+				$progress->tick();
+				continue;
+			}
+			
+			// Get file path information
+			$relative_url_path = str_replace( $base_url, '', $attachment_url );
+			$local_file_path = $base_dir . $relative_url_path;
+			$s3_key = 'wp-content/uploads' . $relative_url_path;
+			
+			// Skip if local file doesn't exist
+			if ( ! file_exists( $local_file_path ) ) {
+				$progress->tick();
+				continue;
+			}
+			
+			// Get local file information
+			$local_size = filesize( $local_file_path );
+			$local_md5 = $verify_md5 ? md5_file( $local_file_path ) : '';
+			
+			// Check if file exists in S3
+			$s3_exists = false;
+			$s3_size = 0;
+			$s3_etag = '';
+			$issue_type = '';
+			$is_fixed = false;
+			
+			try {
+				$s3_object = $s3_client->headObject([
+					'Bucket' => $bucket_name,
+					'Key' => $prefix . $s3_key,
+				]);
+				
+				$s3_exists = true;
+				$s3_size = isset( $s3_object['ContentLength'] ) ? $s3_object['ContentLength'] : 0;
+				$s3_etag = isset( $s3_object['ETag'] ) ? trim( $s3_object['ETag'], '"' ) : '';
+				
+				// Check size if requested
+				if ( $verify_size && $s3_size != $local_size ) {
+					$issue_type = 'Size mismatch';
+					$count_size_mismatch++;
+					
+					if ( $fix ) {
+						// Upload the corrected file
+						try {
+							$s3_client->putObject([
+								'Bucket' => $bucket_name,
+								'Key' => $prefix . $s3_key,
+								'SourceFile' => $local_file_path,
+								'ACL' => 'public-read',
+							]);
+							$count_fixed++;
+							$is_fixed = true;
+						} catch ( \Exception $upload_e ) {
+							// Failed to fix
+						}
+					}
+				}
+				// Check MD5 if requested and there's no size mismatch
+				elseif ( $verify_md5 && empty( $issue_type ) ) {
+					// S3 ETags are MD5 hashes for non-multipart uploads
+					if ( $s3_etag !== $local_md5 ) {
+						$issue_type = 'MD5 mismatch';
+						$count_md5_mismatch++;
+						
+						if ( $fix ) {
+							// Upload the corrected file
+							try {
+								$s3_client->putObject([
+									'Bucket' => $bucket_name,
+									'Key' => $prefix . $s3_key,
+									'SourceFile' => $local_file_path,
+									'ACL' => 'public-read',
+								]);
+								$count_fixed++;
+								$is_fixed = true;
+							} catch ( \Exception $upload_e ) {
+								// Failed to fix
+							}
+						}
+					}
+				}
+				
+			} catch ( \Exception $e ) {
+				// File doesn't exist on S3
+				$s3_exists = false;
+				$issue_type = 'Missing on S3';
+				$count_missing++;
+				
+				if ( $fix ) {
+					// Upload the missing file
+					try {
+						$s3_client->putObject([
+							'Bucket' => $bucket_name,
+							'Key' => $prefix . $s3_key,
+							'SourceFile' => $local_file_path,
+							'ACL' => 'public-read',
+						]);
+						$count_fixed++;
+						$is_fixed = true;
+					} catch ( \Exception $upload_e ) {
+						// Failed to fix
+					}
+				}
+			}
+			
+			// Record verification issues
+			if ( ! empty( $issue_type ) ) {
+				$verification_issues[] = array(
+					'ID' => $attachment_id,
+					'Title' => $attachment->post_title,
+					'Issue' => $issue_type,
+					'Local Size' => size_format( $local_size, 2 ),
+					'S3 Size' => $s3_exists ? size_format( $s3_size, 2 ) : 'N/A',
+					'Fixed' => $is_fixed ? 'Yes' : 'No',
+				);
+			}
+			
+			$progress->tick();
+		}
+		
+		$progress->finish();
+		
+		// Report results
+		WP_CLI::line( '' );
+		WP_CLI::line( 'Verification Results:' );
+		WP_CLI::line( sprintf( 'Total attachments: %d', $count_total ) );
+		WP_CLI::line( sprintf( 'Missing on S3: %d', $count_missing ) );
+		WP_CLI::line( sprintf( 'Size mismatches: %d', $count_size_mismatch ) );
+		
+		if ( $verify_md5 ) {
+			WP_CLI::line( sprintf( 'MD5 mismatches: %d', $count_md5_mismatch ) );
+		}
+		
+		if ( $fix ) {
+			WP_CLI::line( sprintf( 'Issues fixed: %d', $count_fixed ) );
+		}
+		
+		// Display issues in a table
+		if ( ! empty( $verification_issues ) ) {
+			WP_CLI::line( '' );
+			WP_CLI::line( 'Issues found:' );
+			
+			$table_fields = array( 'ID', 'Title', 'Issue', 'Local Size', 'S3 Size' );
+			
+			if ( $fix ) {
+				$table_fields[] = 'Fixed';
+			}
+			
+			WP_CLI\Utils\format_items( 'table', $verification_issues, $table_fields );
+		} else {
+			WP_CLI::success( 'All verified files are in sync with S3.' );
+		}
+	}
+
+	/**
 	 * Reset the local WordPress object cache.
 	 *
 	 * This only cleans the local cache in WP_Object_Cache, without
