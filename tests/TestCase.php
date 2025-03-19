@@ -88,6 +88,19 @@ abstract class TestCase extends WPTestCase {
 							"[{$options['error_code']}] {$options['error_message']}"
 						);
 					});
+				
+				// Add mock for headBucket method
+				$mock_client->shouldReceive('headBucket')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							new Command('HeadBucket'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
 					
 				$mock_client->shouldReceive('getCommand')
 					->andReturnUsing(function($command, $args) use ($options) {
@@ -163,6 +176,19 @@ abstract class TestCase extends WPTestCase {
 			} else {
 				// Other S3 errors
 				$mock_client->shouldReceive('doesBucketExist')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							new Command('HeadBucket'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+				
+				// Add mock for headBucket method
+				$mock_client->shouldReceive('headBucket')
 					->andReturnUsing(function() use ($options) {
 						throw new \Aws\S3\Exception\S3Exception(
 							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
@@ -251,6 +277,10 @@ abstract class TestCase extends WPTestCase {
 			// Configure successful operations
 			$mock_client->shouldReceive('doesBucketExist')
 				->andReturn(true);
+				
+			// Add mock for headBucket method
+			$mock_client->shouldReceive('headBucket')
+				->andReturn(new Result(['BucketName' => 'test-bucket']));
 
 			$mock_factory->shouldReceive('create')
 				->andReturn($mock_client);
@@ -268,7 +298,9 @@ abstract class TestCase extends WPTestCase {
 					switch ($name) {
 						case 'PutObject':
 							$key = $args['Key'];
-							$uploaded_content[$key] = (string)$args['Body'];
+							$content = (string)$args['Body'];
+							$uploaded_content[$key] = $content;
+							error_log("Mock S3 Client: Stored content in key {$key}: " . substr($content, 0, 50) . "...");
 							return new Result([]);
 						case 'GetObject':
 							$key = $args['Key'];
@@ -296,7 +328,9 @@ abstract class TestCase extends WPTestCase {
 			$mock_client->shouldReceive('putObject')
 				->andReturnUsing(function($args) use (&$uploaded_content) {
 					$key = $args['Key'];
-					$uploaded_content[$key] = (string)$args['Body'];
+					$content = (string)$args['Body'];
+					$uploaded_content[$key] = $content;
+					error_log("Mock S3 Client putObject: Stored content in key {$key}: " . substr($content, 0, 50) . "...");
 					return new Result([]);
 				});
 
