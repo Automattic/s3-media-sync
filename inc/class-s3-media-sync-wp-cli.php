@@ -603,6 +603,354 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	}
 
 	/**
+	 * Clean up orphaned files in S3 that are not referenced by any WordPress attachments.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--path=<path>]
+	 * : The path to check for orphaned files. Defaults to wp-content/uploads.
+	 *
+	 * [--delete]
+	 * : Whether to delete the orphaned files from S3.
+	 * By default, this command only shows what would be deleted.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Check for orphaned files in the default uploads directory
+	 *     $ wp s3-media cleanup
+	 *
+	 *     # Delete orphaned files from a specific directory
+	 *     $ wp s3-media cleanup --path=wp-content/uploads/2025/03 --delete
+	 */
+	public function cleanup( $args, $assoc_args ) {
+		global $wpdb;
+		
+		$path = isset( $assoc_args['path'] ) ? $assoc_args['path'] : 'wp-content/uploads';
+		$delete = isset( $assoc_args['delete'] );
+		
+		// Get the S3 client and bucket info
+		$s3 = $this->get_s3_media_sync();
+		$s3_client = $s3->get_s3_client();
+		$bucket = $s3->get_s3_bucket();
+		$bucket_parts = explode( '/', $bucket, 2 );
+		$bucket_name = $bucket_parts[0];
+		$prefix = isset( $bucket_parts[1] ) ? trailingslashit( $bucket_parts[1] ) : '';
+		
+		// Full prefix for S3 listing
+		$full_prefix = trailingslashit( $prefix . $path );
+		
+		WP_CLI::line( sprintf( 'Scanning S3 bucket "%s" with prefix "%s"', $bucket_name, $full_prefix ) );
+		
+		// Get list of files from S3
+		$s3_files = array();
+		$marker = '';
+		$continue = true;
+		$total_files = 0;
+		
+		WP_CLI::line( 'Retrieving file list from S3...' );
+		
+		while ( $continue && $total_files < 1000 ) {
+			try {
+				$params = array(
+					'Bucket' => $bucket_name,
+					'Prefix' => $full_prefix,
+					'MaxKeys' => min( 1000, 1000 - $total_files ),
+				);
+				
+				if ( ! empty( $marker ) ) {
+					$params['Marker'] = $marker;
+				}
+				
+				$objects = $s3_client->listObjects( $params );
+				
+				if ( empty( $objects['Contents'] ) ) {
+					$continue = false;
+					continue;
+				}
+				
+				foreach ( $objects['Contents'] as $object ) {
+					$key = $object['Key'];
+					
+					// Skip directory objects (keys ending with /)
+					if ( substr( $key, -1 ) === '/' ) {
+						continue;
+					}
+					
+					// Remove the bucket prefix to get the relative path
+					$relative_key = substr( $key, strlen( $prefix ) );
+					$s3_files[ $relative_key ] = array(
+						'key' => $key,
+						'size' => $object['Size'],
+						'last_modified' => $object['LastModified'],
+					);
+					
+					$total_files++;
+				}
+				
+				// Set marker for next batch
+				if ( $objects['IsTruncated'] && isset( $objects['NextMarker'] ) ) {
+					$marker = $objects['NextMarker'];
+				} elseif ( $objects['IsTruncated'] && ! empty( $objects['Contents'] ) ) {
+					$last = end( $objects['Contents'] );
+					$marker = $last['Key'];
+				} else {
+					$continue = false;
+				}
+				
+			} catch ( \Exception $e ) {
+				WP_CLI::error( sprintf( 'Failed to list objects from S3: %s', $e->getMessage() ) );
+				return;
+			}
+		}
+		
+		if ( empty( $s3_files ) ) {
+			WP_CLI::success( 'No files found in the specified S3 path.' );
+			return;
+		}
+		
+		WP_CLI::line( sprintf( 'Found %d files in S3', count( $s3_files ) ) );
+		
+		// Get uploads directory info
+		$uploads = wp_upload_dir();
+		$uploads_url = $uploads['baseurl'];
+		$uploads_path = 'wp-content/uploads';
+		
+		// Now check which files exist in WordPress
+		$orphaned_files = array();
+		
+		WP_CLI::line( '' );
+		WP_CLI::line( 'Checking WordPress attachments...' );
+		
+		// Initialize progress bar for total files
+		$progress = \WP_CLI\Utils\make_progress_bar( 'Progress', count( $s3_files ) );
+		$total_processed = 0;
+		
+		// Batch process the files to avoid memory issues
+		$batch_size = 100;
+		$batches = array_chunk( array_keys( $s3_files ), $batch_size, true );
+		
+		foreach ( $batches as $batch ) {
+			// Filter out files that wouldn't be in WordPress uploads
+			$wp_check_files = array();
+			
+			foreach ( $batch as $relative_key ) {
+				// Skip if not in uploads directory
+				if ( strpos( $relative_key, $uploads_path ) !== 0 ) {
+					continue;
+				}
+				
+				// Get the file path relative to uploads dir
+				$file_path = substr( $relative_key, strlen( $uploads_path ) );
+				$file_path = ltrim( $file_path, '/' );
+				
+				// Normalize the path - replace spaces with hyphens and clean special characters
+				$normalized_path = preg_replace('/\s+/', '-', $file_path);
+				$normalized_path = sanitize_file_name($normalized_path);
+				
+				// Skip certain file patterns like temporary files
+				if ( preg_match( '/-e\d+\.|-\d+x\d+\./', $normalized_path ) ) {
+					// These are typically WordPress-generated temporary files
+					// Consider them orphaned by default
+					$orphaned_files[ $relative_key ] = $s3_files[ $relative_key ];
+					continue;
+				}
+				
+				$wp_check_files[ $relative_key ] = $normalized_path;
+			}
+			
+			// Skip to next batch if no files to check
+			if ( empty( $wp_check_files ) ) {
+				foreach ( $batch as $relative_key ) {
+					$progress->tick();
+				}
+				continue;
+			}
+			
+			// First try exact matches
+			$placeholders = implode( ',', array_fill( 0, count( $wp_check_files ), '%s' ) );
+			$query = $wpdb->prepare(
+				"SELECT meta_value FROM {$wpdb->postmeta} 
+				WHERE meta_key = '_wp_attached_file'",
+				array()
+			);
+			
+			$results = $wpdb->get_col( $query );
+			$found_files = array();
+			
+			// Normalize the results
+			foreach ( $results as $file ) {
+				// WordPress stores paths without wp-content/uploads prefix
+				// Store both with and without prefix for comparison
+				$found_files[ $file ] = true;
+				$found_files[ $uploads_path . '/' . ltrim( $file, '/' ) ] = true;
+				
+				// Also store normalized versions
+				$normalized = preg_replace('/\s+/', '-', $file);
+				$normalized = sanitize_file_name($normalized);
+				$found_files[ $normalized ] = true;
+				$found_files[ $uploads_path . '/' . ltrim( $normalized, '/' ) ] = true;
+			}
+			
+			// Check which files are orphaned
+			foreach ( $wp_check_files as $relative_key => $file_path ) {
+				$check_path = substr( $relative_key, strlen( $uploads_path . '/' ) );
+				if ( ! isset( $found_files[ $check_path ] ) && ! isset( $found_files[ $relative_key ] ) ) {
+					$orphaned_files[ $relative_key ] = $s3_files[ $relative_key ];
+				}
+				$progress->tick();
+				$total_processed++;
+			}
+			
+			// Update progress for any skipped files in this batch
+			foreach ( $batch as $relative_key ) {
+				if ( ! isset( $wp_check_files[ $relative_key ] ) ) {
+					$progress->tick();
+					$total_processed++;
+				}
+			}
+		}
+		
+		$progress->finish();
+		
+		// Display results
+		WP_CLI::line( '' );
+		WP_CLI::line( sprintf( 'Found %d orphaned files in S3', count( $orphaned_files ) ) );
+		
+		if ( empty( $orphaned_files ) ) {
+			WP_CLI::success( 'No orphaned files to clean up.' );
+			return;
+		}
+		
+		// Group by year/month for better reporting
+		$grouped_files = array();
+		$total_size = 0;
+		
+		foreach ( $orphaned_files as $relative_key => $file_info ) {
+			// Extract year/month from path
+			$matches = array();
+			if ( preg_match( '|/(\d{4})/(\d{2})/|', $relative_key, $matches ) ) {
+				$group = $matches[1] . '/' . $matches[2];
+			} else {
+				$group = 'other';
+			}
+			
+			if ( ! isset( $grouped_files[ $group ] ) ) {
+				$grouped_files[ $group ] = array(
+					'count' => 0,
+					'size' => 0,
+					'files' => array(),
+				);
+			}
+			
+			$grouped_files[ $group ]['count']++;
+			$grouped_files[ $group ]['size'] += $file_info['size'];
+			$grouped_files[ $group ]['files'][] = $relative_key;
+			$total_size += $file_info['size'];
+		}
+		
+		// Display summary by group
+		$table_data = array();
+		foreach ( $grouped_files as $group => $info ) {
+			$table_data[] = array(
+				'Group' => $group,
+				'Count' => $info['count'],
+				'Size' => size_format( $info['size'], 2 ),
+			);
+		}
+		
+		// Add total row
+		$table_data[] = array(
+			'Group' => 'TOTAL',
+			'Count' => count( $orphaned_files ),
+			'Size' => size_format( $total_size, 2 ),
+		);
+		
+		WP_CLI\Utils\format_items( 'table', $table_data, array( 'Group', 'Count', 'Size' ) );
+		
+		// List some example files
+		$examples = array_slice( array_keys( $orphaned_files ), 0, 10 );
+		WP_CLI::line( '' );
+		WP_CLI::line( 'Example orphaned files:' );
+		foreach ( $examples as $example ) {
+			WP_CLI::line( ' - ' . $example );
+		}
+		
+		// If there are more files than shown in the examples
+		if ( count( $orphaned_files ) > count( $examples ) ) {
+			WP_CLI::line( sprintf( '... and %d more', count( $orphaned_files ) - count( $examples ) ) );
+		}
+		
+		// Delete orphaned files if requested
+		if ( $delete ) {
+			WP_CLI::line( '' );
+			WP_CLI::line( '----------------------------------------' );
+			WP_CLI::line( 'DANGER: You are about to delete files!' );
+			WP_CLI::line( '----------------------------------------' );
+			WP_CLI::confirm( sprintf( 'Are you sure you want to delete %d orphaned files from S3?', count( $orphaned_files ) ) );
+			
+			$progress = \WP_CLI\Utils\make_progress_bar( 'Deleting orphaned files', count( $orphaned_files ) );
+			$delete_count = 0;
+			$failed_count = 0;
+			
+			// Process in batches of 1000 (maximum for S3 deleteObjects)
+			$delete_batches = array_chunk( array_keys( $orphaned_files ), 1000 );
+			
+			foreach ( $delete_batches as $batch ) {
+				$objects = array();
+				
+				foreach ( $batch as $relative_key ) {
+					$objects[] = array(
+						'Key' => $orphaned_files[ $relative_key ]['key'],
+					);
+				}
+				
+				try {
+					$result = $s3_client->deleteObjects([
+						'Bucket' => $bucket_name,
+						'Delete' => [
+							'Objects' => $objects,
+							'Quiet' => true,
+						],
+					]);
+					
+					$delete_count += count( $objects );
+					
+					if ( ! empty( $result['Errors'] ) ) {
+						$failed_count += count( $result['Errors'] );
+						foreach ( $result['Errors'] as $error ) {
+							WP_CLI::warning( sprintf( 'Failed to delete %s: %s', $error['Key'], $error['Message'] ) );
+						}
+					}
+					
+				} catch ( \Exception $e ) {
+					WP_CLI::error( sprintf( 'Error deleting objects: %s', $e->getMessage() ) );
+					return;
+				}
+				
+				// Update progress
+				foreach ( $batch as $relative_key ) {
+					$progress->tick();
+				}
+			}
+			
+			$progress->finish();
+			
+			WP_CLI::success( sprintf( 'Successfully deleted %d orphaned files from S3', $delete_count ) );
+			
+			if ( $failed_count > 0 ) {
+				WP_CLI::warning( sprintf( 'Failed to delete %d files', $failed_count ) );
+			}
+		} else {
+			WP_CLI::line( '' );
+			WP_CLI::line( '----------------------------------------' );
+			WP_CLI::line( 'DRY RUN - No files will be deleted' );
+			WP_CLI::line( '----------------------------------------' );
+			WP_CLI::line( 'To delete these orphaned files, run this command with the --delete flag:' );
+			WP_CLI::line( 'wp s3-media cleanup --path=' . $path . ' --delete' );
+		}
+	}
+
+	/**
 	 * Reset the local WordPress object cache.
 	 *
 	 * This only cleans the local cache in WP_Object_Cache, without
