@@ -312,6 +312,30 @@ class S3_Media_Sync {
 			// Ensure we have a fresh S3 client
 			$factory = $this->get_client_factory();
 			$s3_client = $factory->create($this->settings);
+			
+			// Check if bucket allows ACLs BEFORE configuring stream wrapper
+			if (isset($this->settings['use_acl']) && $this->settings['use_acl']) {
+				try {
+					$result = $s3_client->getBucketOwnershipControls([
+						'Bucket' => $this->settings['bucket']
+					]);
+					
+					if (isset($result['OwnershipControls']['Rules'][0]['ObjectOwnership']) && 
+						$result['OwnershipControls']['Rules'][0]['ObjectOwnership'] === 'BucketOwnerEnforced') {
+						// Bucket doesn't allow ACLs - update settings
+						error_log('S3 Media Sync: Bucket does not allow ACLs - disabling ACL setting');
+						$this->settings['use_acl'] = false;
+						update_option('s3_media_sync_settings', $this->settings);
+					}
+				} catch (\Exception $e) {
+					error_log('S3 Media Sync: Could not determine bucket ACL settings: ' . $e->getMessage());
+					// If we can't check, disable ACLs to be safe
+					$this->settings['use_acl'] = false;
+					update_option('s3_media_sync_settings', $this->settings);
+				}
+			}
+			
+			// Now configure stream wrapper with updated settings
 			$factory->configure_stream_wrapper($s3_client, $this->bucket);
 			
 			$wp_uploads = wp_upload_dir();
