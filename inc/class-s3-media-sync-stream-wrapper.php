@@ -194,12 +194,39 @@ class S3_Media_Sync_Stream_Wrapper {
 		) {
 			$params['ContentType'] = $type;
 		}
+		
+		// Check if ACL setting is explicitly set to null in context options
+		$context_options = stream_context_get_options(stream_context_get_default());
+		if (isset($context_options['s3']['acl'])) {
+			// If ACL is explicitly set to null, don't set the ACL parameter
+			if ($context_options['s3']['acl'] === null) {
+				unset($params['ACL']);
+			} else {
+				$params['ACL'] = $context_options['s3']['acl'];
+			}
+		}
 
 		$this->clearCacheKey( "s3://{$params['Bucket']}/{$params['Key']}" );
 		return $this->boolCall(
 			function () use ( $params ) {
-				$bool = (bool) $this->getClient()->putObject( $params );
-				return $bool;
+				try {
+					$bool = (bool) $this->getClient()->putObject( $params );
+					return $bool;
+				} catch (\Aws\S3\Exception\S3Exception $e) {
+					// If the error is about ACLs not being supported, retry without ACL
+					if (strpos($e->getMessage(), 'AccessControlListNotSupported') !== false) {
+						// Remove ACL and try again
+						unset($params['ACL']);
+						$bool = (bool) $this->getClient()->putObject( $params );
+						
+						// Update the default stream context to not use ACLs for future requests
+						stream_context_set_default(['s3' => ['acl' => null]]);
+						
+						return $bool;
+					}
+					// Re-throw for other errors
+					throw $e;
+				}
 			}
 		);
 	}

@@ -75,94 +75,215 @@ abstract class TestCase extends WPTestCase {
 
 		// Configure the mock client based on options
 		if (!$options['should_succeed'] && $options['error_code']) {
-			$mock_client->shouldReceive('doesBucketExist')
-				->andReturnUsing(function() use ($options) {
-					throw new \Aws\S3\Exception\S3Exception(
-						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-						new Command('HeadBucket'),
-						[
-							'code' => $options['error_code'],
-							'message' => $options['error_message']
-						]
-					);
-				});
+			// Always return the mock client first, even for credential errors
+			$mock_factory->shouldReceive('create')
+				->andReturn($mock_client);
+			
+			// Handle credential errors during operations instead of creation
+			if ($options['error_code'] === 'InvalidAccessKeyId' || $options['error_code'] === 'SignatureDoesNotMatch') {
+				// Mock the stream wrapper behavior for credential errors
+				$mock_client->shouldReceive('doesBucketExist')
+					->andReturnUsing(function() use ($options) {
+						throw new \RuntimeException(
+							"[{$options['error_code']}] {$options['error_message']}"
+						);
+					});
+				
+				// Add mock for headBucket method
+				$mock_client->shouldReceive('headBucket')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							new Command('HeadBucket'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+					
+				$mock_client->shouldReceive('getCommand')
+					->andReturnUsing(function($command, $args) use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							new Command($command, $args),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+					
+				$mock_client->shouldReceive('execute')
+					->andReturnUsing(function($command) use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							$command,
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+					
+				$mock_client->shouldReceive('putObject')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							new Command('PutObject'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+					
+				$mock_client->shouldReceive('getObject')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							new Command('GetObject'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+					
+				$mock_client->shouldReceive('headObject')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							new Command('HeadObject'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+					
+				$mock_client->shouldReceive('deleteMatchingObjects')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							"[{$options['error_code']}] {$options['error_message']}",
+							new Command('DeleteObject'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+			} else {
+				// Other S3 errors
+				$mock_client->shouldReceive('doesBucketExist')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							new Command('HeadBucket'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+				
+				// Add mock for headBucket method
+				$mock_client->shouldReceive('headBucket')
+					->andReturnUsing(function() use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							new Command('HeadBucket'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
 
-			$mock_client->shouldReceive('getCommand')
-				->andReturnUsing(function($command, $args) use ($options) {
-					$cmd = new Command($command, $args);
-					throw new \Aws\S3\Exception\S3Exception(
-						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-						$cmd,
-						[
-							'code' => $options['error_code'],
-							'message' => $options['error_message']
-						]
-					);
-				});
+				$mock_client->shouldReceive('getCommand')
+					->andReturnUsing(function($command, $args) use ($options) {
+						$cmd = new Command($command, $args);
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							$cmd,
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
 
-			$mock_client->shouldReceive('execute')
-				->andReturnUsing(function($command) use ($options) {
-					throw new \Aws\S3\Exception\S3Exception(
-						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-						$command,
-						[
-							'code' => $options['error_code'],
-							'message' => $options['error_message']
-						]
-					);
-				});
+				$mock_client->shouldReceive('execute')
+					->andReturnUsing(function($command) use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							$command,
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
 
-			$mock_client->shouldReceive('deleteMatchingObjects')
-				->andReturnUsing(function($bucket, $prefix) use ($options) {
-					throw new \Aws\S3\Exception\S3Exception(
-						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-						new Command('DeleteObjects'),
-						[
-							'code' => $options['error_code'],
-							'message' => $options['error_message']
-						]
-					);
-				});
+				$mock_client->shouldReceive('putObject')
+					->andReturnUsing(function($args) use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							new Command('PutObject'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
 
-			$mock_client->shouldReceive('putObject')
-				->andReturnUsing(function($args) use ($options) {
-					throw new \Aws\S3\Exception\S3Exception(
-						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-						new Command('PutObject'),
-						[
-							'code' => $options['error_code'],
-							'message' => $options['error_message']
-						]
-					);
-				});
+				$mock_client->shouldReceive('getObject')
+					->andReturnUsing(function($args) use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							new Command('GetObject'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
 
-			$mock_client->shouldReceive('getObject')
-				->andReturnUsing(function($args) use ($options) {
-					throw new \Aws\S3\Exception\S3Exception(
-						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-						new Command('GetObject'),
-						[
-							'code' => $options['error_code'],
-							'message' => $options['error_message']
-						]
-					);
-				});
+				$mock_client->shouldReceive('headObject')
+					->andReturnUsing(function($args) use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							new Command('HeadObject'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
 
-			$mock_client->shouldReceive('headObject')
-				->andReturnUsing(function($args) use ($options) {
-					throw new \Aws\S3\Exception\S3Exception(
-						sprintf('[%s] %s', $options['error_code'], $options['error_message']),
-						new Command('HeadObject'),
-						[
-							'code' => $options['error_code'],
-							'message' => $options['error_message']
-						]
-					);
-				});
+				$mock_client->shouldReceive('deleteMatchingObjects')
+					->andReturnUsing(function($bucket, $prefix) use ($options) {
+						throw new \Aws\S3\Exception\S3Exception(
+							sprintf('[%s] %s', $options['error_code'], $options['error_message']),
+							new Command('DeleteObjects'),
+							[
+								'code' => $options['error_code'],
+								'message' => $options['error_message']
+							]
+						);
+					});
+			}
 		} else {
 			// Configure successful operations
 			$mock_client->shouldReceive('doesBucketExist')
 				->andReturn(true);
+				
+			// Add mock for headBucket method
+			$mock_client->shouldReceive('headBucket')
+				->andReturn(new Result(['BucketName' => 'test-bucket']));
+
+			$mock_factory->shouldReceive('create')
+				->andReturn($mock_client);
 
 			$mock_client->shouldReceive('getCommand')
 				->andReturnUsing(function($command, $args) {
@@ -177,7 +298,9 @@ abstract class TestCase extends WPTestCase {
 					switch ($name) {
 						case 'PutObject':
 							$key = $args['Key'];
-							$uploaded_content[$key] = (string)$args['Body'];
+							$content = (string)$args['Body'];
+							$uploaded_content[$key] = $content;
+							error_log("Mock S3 Client: Stored content in key {$key}: " . substr($content, 0, 50) . "...");
 							return new Result([]);
 						case 'GetObject':
 							$key = $args['Key'];
@@ -205,7 +328,9 @@ abstract class TestCase extends WPTestCase {
 			$mock_client->shouldReceive('putObject')
 				->andReturnUsing(function($args) use (&$uploaded_content) {
 					$key = $args['Key'];
-					$uploaded_content[$key] = (string)$args['Body'];
+					$content = (string)$args['Body'];
+					$uploaded_content[$key] = $content;
+					error_log("Mock S3 Client putObject: Stored content in key {$key}: " . substr($content, 0, 50) . "...");
 					return new Result([]);
 				});
 
@@ -248,9 +373,6 @@ abstract class TestCase extends WPTestCase {
 		}
 
 		// Configure the factory to return our mock client
-		$mock_factory->shouldReceive('create')
-			->andReturn($mock_client);
-
 		$mock_factory->shouldReceive('configure_stream_wrapper')
 			->with($mock_client, Mockery::any())
 			->andReturnUsing(function($client, $settings) {

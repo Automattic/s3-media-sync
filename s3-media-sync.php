@@ -10,6 +10,7 @@
  */
 
 define( 'S3_MEDIA_SYNC_FILE', __FILE__ );
+define( 'S3_MEDIA_SYNC_GITHUB_URL', 'https://github.com/automattic/s3-media-sync' );
 
 if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 	require_once __DIR__ . '/vendor/autoload.php';
@@ -24,7 +25,9 @@ add_action(
 	'plugins_loaded',
 	function() {
 		$settings_handler = new S3_Media_Sync_Settings();
-		$s3_media_sync = new S3_Media_Sync( $settings_handler );
+		$settings = $settings_handler->get_settings();
+		$tester = new S3_Media_Sync_Tester($settings);
+		$s3_media_sync = new S3_Media_Sync($settings_handler);
 		$s3_media_sync->setup();
 	}
 );

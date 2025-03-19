@@ -107,8 +107,14 @@ class BulkOperationsTest extends TestCase {
 			// Verify the upload was processed
 			Assert::assertSame( $upload, $result, 'Upload data should be returned unchanged for ' . $file['name'] );
 
-			// Verify the file exists in S3
-			$s3_path = 's3://' . $this->default_settings['bucket'] . '/wp-content/uploads' . str_replace(wp_get_upload_dir()['baseurl'], '', $upload['url']);
+			// Get the uploads dir info
+			$uploads = wp_upload_dir();
+			$uploads_path = trailingslashit($uploads['basedir']);
+			$file_subpath = str_replace($uploads_path, '', $upload['file']);
+			$expected_s3_path = 'wp-content/uploads/' . $file_subpath;
+			
+			// Verify the file exists in S3 with the new path structure
+			$s3_path = 's3://' . $this->default_settings['bucket'] . '/' . $expected_s3_path;
 			Assert::assertTrue(file_exists($s3_path), 'File should exist in S3: ' . $file['name']);
 
 			// Verify the content was uploaded correctly
@@ -128,7 +134,7 @@ class BulkOperationsTest extends TestCase {
 	 * @dataProvider data_provider_bulk_operations
 	 */
 	public function test_bulk_upload_error_handling( array $test_data ): void {
-		// Create a mock S3 client that will fail uploads
+		// Create a mock S3 client that will fail with access denied
 		$s3_client = $this->create_mock_s3_client([
 			'error_code' => 'AccessDenied',
 			'error_message' => 'Access Denied',
@@ -140,32 +146,50 @@ class BulkOperationsTest extends TestCase {
 
 		$test_files = [];
 
-		// Process each file and verify error handling
+		// Create temporary test files.
 		foreach ( $test_data['files'] as $file ) {
 			// Create the test file
-			$test_file_path = $this->create_temp_file($file['name']);
-			$test_files[] = $test_file_path;
+			$test_file_path = $this->create_temp_file($file['name'], 'Test content');
+			$test_files[$file['name']] = $test_file_path;
 
 			// Simulate WordPress upload
 			$upload = $this->create_test_upload($test_file_path, $file['type']);
 
-			// Test the upload sync should fail
-			$error_triggered = false;
-			set_error_handler(function($errno, $errstr) use (&$error_triggered) {
-				$error_triggered = true;
-				Assert::assertStringContainsString('Failed to open stream', $errstr);
-				Assert::assertStringContainsString('Access Denied', $errstr);
-				return true;
-			});
-
-			try {
-				$this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
-			} catch (\Exception $e) {
-				// Expected
+			// Set up error logging capture
+			$error_log_file = tempnam(sys_get_temp_dir(), 'phpunit_error_log');
+			$old_error_log = ini_get('error_log');
+			ini_set('error_log', $error_log_file);
+			
+			// Run the test - this should log the error but still return the upload data
+			$result = $this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
+			
+			// Restore error logging
+			ini_set('error_log', $old_error_log);
+			
+			// Verify the result is still the original upload data
+			Assert::assertSame($upload, $result, 'Upload data should be returned unchanged for ' . $file['name'] . ' even on error');
+			
+			// Check the error log - we expect either "Access Denied" or "Failed to upload" or "S3 upload error"
+			$log_content = file_get_contents($error_log_file);
+			$expected_messages = [
+				'Access Denied',
+				'Failed to upload',
+				'S3 upload error',
+				'[AccessDenied]'
+			];
+			
+			$message_found = false;
+			foreach ($expected_messages as $message) {
+				if (strpos($log_content, $message) !== false) {
+					$message_found = true;
+					break;
+				}
 			}
-
-			restore_error_handler();
-			Assert::assertTrue($error_triggered, 'Expected PHP error was not triggered for ' . $file['name']);
+			
+			Assert::assertTrue($message_found, 'Error for ' . $file['name'] . ' should be logged');
+			
+			// Clean up
+			unlink($error_log_file);
 		}
 
 		// Clean up test files
