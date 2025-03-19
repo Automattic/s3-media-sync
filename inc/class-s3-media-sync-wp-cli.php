@@ -256,6 +256,92 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 		WP_CLI::success( sprintf( 'Successfully deleted %s', $prefix ) );
 	}
 
+	/**
+	 * Get status information about the S3 connection and plugin configuration
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Check S3 connection status and configuration
+	 *     $ wp s3-media status
+	 */
+	public function status( $args, $assoc_args ) {
+		$s3 = $this->get_s3_media_sync();
+		$settings_handler = $s3->get_settings_handler();
+		$settings = $settings_handler->get_settings();
+		
+		// Check if required settings are available
+		if ( ! $settings_handler->has_required_settings() ) {
+			WP_CLI::error( 'S3 Media Sync is not properly configured. Please set up your AWS credentials in the WordPress admin.' );
+			return;
+		}
+		
+		// Check S3 connection
+		try {
+			$bucket = $s3->get_s3_bucket();
+			$bucket_parts = explode( '/', $bucket, 2 );
+			$bucket_name = $bucket_parts[0];
+			
+			// Get the S3 client
+			$s3_client = $s3->get_s3_client();
+			
+			// Check bucket accessibility by performing a head bucket request
+			$s3_client->headBucket( array(
+				'Bucket' => $bucket_name
+			) );
+			
+			// Display configuration information
+			WP_CLI::success( 'Successfully connected to S3' );
+			
+			// Create a formatted table of settings
+			$settings_data = array();
+			$settings_data[] = array(
+				'Setting' => 'Bucket',
+				'Value' => $bucket
+			);
+			$settings_data[] = array(
+				'Setting' => 'Region',
+				'Value' => $settings['region']
+			);
+			$settings_data[] = array(
+				'Setting' => 'Use ACLs',
+				'Value' => isset( $settings['use_acl'] ) && $settings['use_acl'] ? 'Yes' : 'No'
+			);
+			$settings_data[] = array(
+				'Setting' => 'Object ACL',
+				'Value' => isset( $settings['object_acl'] ) ? $settings['object_acl'] : 'Not set'
+			);
+			$settings_data[] = array(
+				'Setting' => 'Sync Thumbnails',
+				'Value' => isset( $settings['sync_thumbnails'] ) && $settings['sync_thumbnails'] !== false ? 'Yes' : 'No'
+			);
+			
+			// Display table
+			WP_CLI\Utils\format_items( 'table', $settings_data, array( 'Setting', 'Value' ) );
+			
+			// List IAM user/role details if possible
+			try {
+				$sts_client = new \Aws\Sts\StsClient([
+					'region' => $settings['region'],
+					'version' => 'latest',
+					'credentials' => [
+						'key' => $settings['key'],
+						'secret' => $settings['secret']
+					]
+				]);
+				$identity = $sts_client->getCallerIdentity();
+				
+				WP_CLI::line( '' ); // Empty line for spacing
+				WP_CLI::line( 'AWS Account Information:' );
+				WP_CLI::line( '- Account ID: ' . $identity['Account'] );
+				WP_CLI::line( '- IAM User/Role: ' . $identity['Arn'] );
+			} catch ( \Exception $e ) {
+				WP_CLI::warning( 'Unable to retrieve AWS identity information: ' . $e->getMessage() );
+			}
+			
+		} catch ( \Exception $e ) {
+			WP_CLI::error( sprintf( 'Failed to connect to S3: %s', $e->getMessage() ) );
+		}
+	}
 
 	/**
 	 * Reset the local WordPress object cache.

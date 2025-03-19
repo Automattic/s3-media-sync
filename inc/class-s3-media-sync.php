@@ -41,6 +41,10 @@ class S3_Media_Sync {
 		return 's3://' . $this->bucket->get_name();
 	}
 
+	public function get_s3_client() {
+		return $this->s3_client;
+	}
+
 	/**
 	 * Setup for the plugin
 	 */
@@ -60,8 +64,8 @@ class S3_Media_Sync {
 		try {
 			// Register and configure the stream wrapper
 			$factory = $this->get_client_factory();
-			$s3_client = $factory->create($this->settings);
-			$factory->configure_stream_wrapper($s3_client, $this->bucket);
+			$this->s3_client = $factory->create($this->settings);
+			$factory->configure_stream_wrapper($this->s3_client, $this->bucket);
 
 			// Hook into WordPress media handling
 			// These hooks match the original plugin behavior and test expectations
