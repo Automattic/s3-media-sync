@@ -1,6 +1,8 @@
 <?php
 
-use \WP_CLI\Utils;
+use WP_CLI;
+use WP_CLI\Utils;
+use WP_CLI_Command;
 
 /**
  * Class S3_Media_Sync_WP_CLI_Command
@@ -38,7 +40,7 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	public function upload( $args, $assoc_args ) {
 		// Get the source and destination and initialize some concurrency variables
 		$from	= wp_get_upload_dir();
-		$to	= S3_Media_Sync::init()->get_s3_bucket_url();
+		$to	= $this->get_s3_media_sync()->get_s3_bucket_url();
 		
 		$attachment_id = absint( $args[0] );
 	
@@ -120,7 +122,7 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 
 		// Get the source and destination and initialize some concurrency variables
 		$from    = wp_get_upload_dir();
-		$to      = S3_Media_Sync::init()->get_s3_bucket_url();
+		$to      = $this->get_s3_media_sync()->get_s3_bucket_url();
 		$offset  = 0;
 		$threads = 10;
 		$limit   = 500;
@@ -222,8 +224,8 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	 *     $ wp s3-media rm path/to/files --regex='.*\.jpg'
 	 */
 	public function rm( $args, $args_assoc ) {
-		$s3     = S3_Media_Sync::init()->s3();
-		$bucket = S3_Media_Sync::init()->get_s3_bucket();
+		$s3     = $this->get_s3_media_sync()->get_s3_client();
+		$bucket = $this->get_s3_media_sync()->get_s3_bucket();
 		$prefix = '';
 
 		if ( strpos( $bucket, '/' ) ) {
@@ -292,6 +294,20 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 		global $wpdb;
 
 		$wpdb->queries = array();
+	}
+
+	/**
+	 * Get the S3 Media Sync instance.
+	 *
+	 * @return S3_Media_Sync
+	 */
+	private function get_s3_media_sync() {
+		$settings_handler = new S3_Media_Sync_Settings();
+		$settings = $settings_handler->get_settings();
+		$tester = new S3_Media_Sync_Tester($settings);
+		$s3_media_sync = new S3_Media_Sync($settings_handler);
+		$s3_media_sync->setup();
+		return $s3_media_sync;
 	}
 
 }
