@@ -37,12 +37,27 @@ class Local_File {
         ?int $size = null,
         ?string $md5_hash = null
     ) {
+
+        if (empty($path)) {
+            throw new Invalid_File_Exception('File path cannot be empty');
+        }
+
+        if ($mime_type !== null && !preg_match('/^[\w\-\+\.]+\/[\w\-\+\.]+$/', $mime_type)) {
+            throw new Invalid_File_Exception('Invalid MIME type: ' . $mime_type);
+        }
+
+        if ($size !== null && $size < 0) {
+            throw new Invalid_File_Exception('File size cannot be negative');
+        }
+
+        if ($md5_hash !== null && !preg_match('/^[a-f0-9]{32}$/', $md5_hash)) {
+            throw new Invalid_File_Exception('Invalid MD5 hash: ' . $md5_hash);
+        }
+
         $this->path = $this->normalize_path($path);
         $this->mime_type = $mime_type;
         $this->size = $size;
         $this->md5_hash = $md5_hash;
-
-        $this->validate();
     }
 
     /**
@@ -68,7 +83,7 @@ class Local_File {
         string $path,
         string $mime_type,
         int $size,
-        string $md5_hash
+        ?string $md5_hash
     ): self {
         return new self($path, $mime_type, $size, $md5_hash);
     }
@@ -148,29 +163,6 @@ class Local_File {
      */
     public function equals(Local_File $other): bool {
         return $this->path === $other->path;
-    }
-
-    /**
-     * Validate the file path
-     *
-     * @throws Invalid_File_Exception
-     */
-    private function validate(): void {
-        if (empty($this->path)) {
-            throw new Invalid_File_Exception('File path cannot be empty');
-        }
-
-        if ($this->mime_type !== null && !preg_match('/^[\w\-\+\.]+\/[\w\-\+\.]+$/', $this->mime_type)) {
-            throw new Invalid_File_Exception('Invalid MIME type: ' . $this->mime_type);
-        }
-
-        if ($this->size !== null && $this->size < 0) {
-            throw new Invalid_File_Exception('File size cannot be negative');
-        }
-
-        if ($this->md5_hash !== null && !preg_match('/^[a-f0-9]{32}$/', $this->md5_hash)) {
-            throw new Invalid_File_Exception('Invalid MD5 hash: ' . $this->md5_hash);
-        }
     }
 
     /**
