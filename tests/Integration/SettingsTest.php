@@ -52,6 +52,7 @@ class SettingsTest extends TestCase {
 					'key'        => 'test-key',
 					'secret'     => 'test-secret',
 					'region'     => 'test-region',
+					'use_acl'    => true,
 					'object_acl' => 'public-read',
 				],
 				's3-media-sync-settings-error',
@@ -63,6 +64,7 @@ class SettingsTest extends TestCase {
 					'key'        => '',
 					'secret'     => '',
 					'region'     => '',
+					'use_acl'    => true,
 					'object_acl' => 'public-read',
 				],
 				's3-media-sync-settings-error',
@@ -146,6 +148,24 @@ class SettingsTest extends TestCase {
 		$saved_settings = $this->settings_handler->get_settings();
 
 		Assert::assertSame( $settings, $saved_settings );
+	}
+
+	/**
+	 * Test get settings.
+	 */
+	public function test_get_settings(): void {
+		$settings = [
+			'bucket'     => 'test-bucket',
+			'key'       => 'test-key',
+			'secret'    => 'test-secret',
+			'region'    => 'us-east-1',
+			'use_acl'   => true,
+			'object_acl' => 'public-read',
+		];
+
+		update_option('s3_media_sync_settings', $settings);
+
+		Assert::assertSame($settings, $this->settings_handler->get_settings());
 	}
 
 	/**

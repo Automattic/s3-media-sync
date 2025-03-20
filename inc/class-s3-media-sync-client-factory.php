@@ -7,8 +7,12 @@
  * @package S3_Media_Sync
  */
 
+namespace S3_Media_Sync;
+
 use Aws\S3\S3Client;
 use Aws\S3\S3ClientInterface;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\Region;
 
 /**
  * Class S3_Media_Sync_Client_Factory
@@ -29,15 +33,27 @@ class S3_Media_Sync_Client_Factory {
 	 * @throws \InvalidArgumentException If required settings are missing.
 	 */
 	public function create( array $settings ): S3ClientInterface {
-		if ( empty( $settings['region'] ) ) {
-			throw new \InvalidArgumentException( 'Region is required to create an S3 client.' );
+		if (!isset($settings['region']) || empty($settings['region'])) {
+			throw new \S3_Media_Sync\Exceptions\Invalid_Region_Exception(
+				sprintf(
+					'Invalid region: %s. Must be one of: %s',
+					$settings['region'] ?? '',
+					implode(', ', Region::get_valid_regions())
+				)
+			);
+		}
+
+		try {
+			$region = Region::from_string($settings['region']);
+		} catch (\S3_Media_Sync\Exceptions\Invalid_Region_Exception $e) {
+			throw $e;
 		}
 
 		$params = [
 			'version' => 'latest',
 			'signature_version' => 'v4',
-			'region' => $settings['region'],
-			'endpoint' => "https://s3.{$settings['region']}.amazonaws.com"
+			'region' => $region->get_identifier(),
+			'endpoint' => "https://s3.{$region->get_identifier()}.amazonaws.com"
 		];
 
 		if ( isset( $settings['key'] ) && isset( $settings['secret'] ) && $settings['key'] && $settings['secret'] ) {
@@ -56,8 +72,7 @@ class S3_Media_Sync_Client_Factory {
 				$proxy_auth = WP_PROXY_USERNAME . ':' . WP_PROXY_PASSWORD . '@';
 			}
 
-            $params['request.options']['proxy'] = $proxy_auth . $proxy_address;
-
+			$params['request.options']['proxy'] = $proxy_auth . $proxy_address;
 		}
 
 		return new S3Client( $params );
@@ -67,18 +82,18 @@ class S3_Media_Sync_Client_Factory {
 	 * Configure the stream wrapper with the provided client
 	 *
 	 * @param \Aws\S3\S3Client $client S3 client
-	 * @param array $settings The settings array
+	 * @param S3_Bucket $bucket The bucket configuration
 	 */
-	public function configure_stream_wrapper( $client, $settings ) {
+	public function configure_stream_wrapper( S3Client $client, S3_Bucket $bucket ): void {
 		// Ensure we have a valid client
-		if (!$client) {
+		if ( !$client ) {
 			error_log('S3 Media Sync: Cannot configure stream wrapper - S3 client is null');
 			return;
 		}
 
 		try {
 			// Check if stream wrapper is already registered - if so, unregister it first
-			if (in_array('s3', stream_get_wrappers())) {
+			if ( in_array('s3', stream_get_wrappers()) ) {
 				stream_wrapper_unregister('s3');
 				error_log('S3 Media Sync: Unregistered existing S3 stream wrapper');
 			}
@@ -86,40 +101,32 @@ class S3_Media_Sync_Client_Factory {
 			// Register the stream wrapper using the AWS SDK method
 			$client->registerStreamWrapper();
 			
-			if (in_array('s3', stream_get_wrappers())) {
+			if ( in_array('s3', stream_get_wrappers()) ) {
 				error_log('S3 Media Sync: Successfully registered S3 stream wrapper');
 				
 				// Configure options for the stream wrapper
-				// Determine ACL settings
-				$acl = null;
-				
 				// Special handling for test environment to ensure ACLs are set as expected
-				$is_test_environment = defined('WP_TESTS_DOMAIN') || (isset($GLOBALS['_SERVER']['HTTP_X_PHPUNIT_TEST']) && $GLOBALS['_SERVER']['HTTP_X_PHPUNIT_TEST'] === 'true');
+				$is_test_environment = defined('WP_TESTS_DOMAIN') || 
+					(isset($GLOBALS['_SERVER']['HTTP_X_PHPUNIT_TEST']) && 
+					$GLOBALS['_SERVER']['HTTP_X_PHPUNIT_TEST'] === 'true');
+				
+				// Get ACL settings from bucket object
+				$acl = $bucket->should_use_acl() ? $bucket->get_object_acl() : null;
 				
 				if ($is_test_environment) {
-					// In test environment, always set ACL as specified in settings
-					if (isset($settings['object_acl']) && !empty($settings['object_acl'])) {
-						// Sanitize ACL in test environment to prevent XSS
-						$acl = sanitize_text_field($settings['object_acl']);
-					} else {
-						$acl = 'public-read'; // Default ACL for tests
-					}
 					error_log('S3 Media Sync: Test environment detected, using ACL: ' . $acl);
-					
-					// For tests, we don't need to check if bucket allows ACL - assume it does
-					// This helps avoid issues with mocked S3 clients in tests
-				} else if (isset($settings['use_acl']) && $settings['use_acl']) {
+				} else if ($bucket->should_use_acl()) {
 					// Normal environment ACL handling
 					// Check if the bucket allows ACLs
-					if ($this->does_bucket_allow_acl($client, $settings['bucket'])) {
-						// Sanitize ACL in production environment too
-						$acl = isset($settings['object_acl']) ? sanitize_text_field($settings['object_acl']) : 'public-read';
+					if ($this->does_bucket_allow_acl($client, $bucket->get_name())) {
 						error_log('S3 Media Sync: Using ACL setting: ' . $acl);
 					} else {
 						// Bucket doesn't allow ACLs - update settings
 						error_log('S3 Media Sync: Bucket does not allow ACLs - disabling ACL setting');
+						$settings = get_option('s3_media_sync_settings', []);
 						$settings['use_acl'] = false;
 						update_option('s3_media_sync_settings', $settings);
+						$acl = null;
 					}
 				}
 				
@@ -132,9 +139,9 @@ class S3_Media_Sync_Client_Factory {
 				]);
 				
 				// Skip bucket verification in test environments to avoid mock issues
-				if (!$is_test_environment) {
+				if ( !$is_test_environment ) {
 					// Test bucket access with the stream wrapper
-					$test_path = 's3://' . $settings['bucket'];
+					$test_path = 's3://' . $bucket->get_name();
 					if (@file_exists($test_path)) {
 						error_log('S3 Media Sync: Stream wrapper test successful - bucket exists');
 					} else {
@@ -143,7 +150,7 @@ class S3_Media_Sync_Client_Factory {
 						
 						// Try a direct API call to test bucket access
 						try {
-							$result = $client->headBucket(['Bucket' => $settings['bucket']]);
+							$result = $client->headBucket(['Bucket' => $bucket->get_name()]);
 							error_log('S3 Media Sync: Direct API bucket access successful');
 						} catch (\Exception $e) {
 							error_log('S3 Media Sync: Direct API bucket access failed: ' . $e->getMessage());
@@ -167,7 +174,7 @@ class S3_Media_Sync_Client_Factory {
 	 * @param string $bucket_name Bucket name
 	 * @return bool Whether ACLs are allowed
 	 */
-	public function does_bucket_allow_acl($client, $bucket_name) {
+	public function does_bucket_allow_acl( S3Client $client, string $bucket_name ): bool {
 		try {
 			// Get the bucket's ownership controls
 			$result = $client->getBucketOwnershipControls([
@@ -175,7 +182,7 @@ class S3_Media_Sync_Client_Factory {
 			]);
 			
 			// Check if ACLs are disabled
-			if (isset($result['OwnershipControls']['Rules'][0]['ObjectOwnership']) && 
+			if ( isset($result['OwnershipControls']['Rules'][0]['ObjectOwnership']) && 
 				$result['OwnershipControls']['Rules'][0]['ObjectOwnership'] === 'BucketOwnerEnforced') {
 				// BucketOwnerEnforced means ACLs are disabled
 				error_log('S3 Media Sync: Bucket has BucketOwnerEnforced setting - ACLs are disabled');

@@ -375,9 +375,9 @@ abstract class TestCase extends WPTestCase {
 		// Configure the factory to return our mock client
 		$mock_factory->shouldReceive('configure_stream_wrapper')
 			->with($mock_client, Mockery::any())
-			->andReturnUsing(function($client, $settings) {
+			->andReturnUsing(function($client, $bucket) {
 				S3_Media_Sync_Stream_Wrapper::register($client);
-				stream_context_set_option(stream_context_get_default(), 's3', 'ACL', $settings['object_acl'] ?? 'public-read');
+				stream_context_set_option(stream_context_get_default(), 's3', 'ACL', $bucket->get_acl());
 				stream_context_set_option(stream_context_get_default(), 's3', 'seekable', true);
 			});
 
@@ -477,7 +477,7 @@ abstract class TestCase extends WPTestCase {
 			'bucket' => 'test-bucket',
 			'key' => 'test-key',
 			'secret' => 'test-secret',
-			'region' => 'test-region',
+			'region' => 'us-east-1',
 			'object_acl' => 'public-read',
 		];
 
@@ -497,5 +497,19 @@ abstract class TestCase extends WPTestCase {
 		delete_option('s3_media_sync_settings');
 		unset($GLOBALS['s3_media_sync_client_factory']);
 		Mockery::close();
+	}
+
+	/**
+	 * Get test settings
+	 */
+	protected function get_test_settings(): array {
+		return [
+			'bucket'     => 'test-bucket',
+			'key'       => 'test-key',
+			'secret'    => 'test-secret',
+			'region'    => 'us-east-1',
+			'use_acl'   => true,
+			'object_acl' => 'public-read',
+		];
 	}
 } 

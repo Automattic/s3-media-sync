@@ -9,6 +9,16 @@ namespace S3_Media_Sync\Tests;
 
 use Yoast\WPTestUtils\WPIntegration;
 
+// Set up default test settings
+$GLOBALS['s3_media_sync_test_settings'] = [
+	'bucket' => 'test-bucket',
+	'key' => 'test-key',
+	'secret' => 'test-secret',
+	'region' => 'us-east-1',
+	'object_acl' => 'public-read',
+	'use_acl' => true
+];
+
 // Check for a `--testsuite integration` arg when calling phpunit, and use it to conditionally load up WordPress.
 $plugin_slug_argv = $GLOBALS['argv'];
 $plugin_slug_key  = (int) array_search( '--testsuite', $plugin_slug_argv, true );
@@ -32,6 +42,12 @@ if ( $plugin_slug_key && 'integration' === $plugin_slug_argv[ $plugin_slug_key +
 		define( 'WP_PLUGIN_DIR', dirname( __DIR__, 2 ) );
 	}
 
+	// Set up test settings in WordPress options table before loading WordPress
+	require_once $plugin_slug_tests_dir . '/includes/functions.php';
+	tests_add_filter('pre_option_s3_media_sync_settings', function() {
+		return $GLOBALS['s3_media_sync_test_settings'];
+	});
+
 	$GLOBALS['wp_tests_options'] = array(
 		'active_plugins' => [ 's3-media-sync/s3-media-sync.php' ],
 	);
@@ -54,4 +70,5 @@ if ( $plugin_slug_key && 'integration' === $plugin_slug_argv[ $plugin_slug_key +
 
 } else {
 	// Unit testing bootstrap goes here.
+	require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 }

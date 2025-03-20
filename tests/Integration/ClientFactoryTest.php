@@ -11,7 +11,9 @@ use Aws\S3\S3Client;
 use Aws\S3\S3ClientInterface;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
-use S3_Media_Sync_Client_Factory;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\Region;
+use S3_Media_Sync\S3_Media_Sync_Client_Factory;
 use S3_Media_Sync_Stream_Wrapper;
 use S3_Media_Sync;
 use S3_Media_Sync_Settings;
@@ -34,11 +36,26 @@ class ClientFactoryTest extends TestCase {
     protected $factory;
 
     /**
+     * @var array<string, mixed>
+     */
+    protected array $default_settings;
+
+    /**
      * Set up before each test.
      */
     public function set_up(): void {
         parent::set_up();
         $this->factory = new S3_Media_Sync_Client_Factory();
+        
+        // Set up default test settings
+        $this->default_settings = [
+            'bucket' => 'test-bucket',
+            'key' => 'test-key',
+            'secret' => 'test-secret',
+            'region' => 'us-east-1',
+            'object_acl' => 'public-read',
+            'use_acl' => true
+        ];
     }
 
     /**
@@ -50,9 +67,10 @@ class ClientFactoryTest extends TestCase {
         return [
             'complete settings' => [
                 [
+                    'bucket' => 'test-bucket',
                     'key' => 'test-key',
                     'secret' => 'test-secret',
-                    'region' => 'test-region',
+                    'region' => 'us-east-1',
                     'object_acl' => 'public-read',
                 ],
                 true,
@@ -60,7 +78,8 @@ class ClientFactoryTest extends TestCase {
             ],
             'minimal settings' => [
                 [
-                    'region' => 'test-region',
+                    'bucket' => 'test-bucket',
+                    'region' => 'us-east-1',
                 ],
                 false,
                 true,
@@ -95,22 +114,34 @@ class ClientFactoryTest extends TestCase {
     }
 
     /**
-     * Test that client creation fails without required settings.
+     * Test that client creation fails without region.
      */
     public function test_create_client_fails_without_region(): void {
         $settings = [
+            'bucket' => 'test-bucket',
             'key' => 'test-key',
             'secret' => 'test-secret',
         ];
 
-        $exception_thrown = false;
-        try {
-            $this->factory->create($settings);
-        } catch (\InvalidArgumentException $e) {
-            $exception_thrown = true;
-            Assert::assertStringContainsStringIgnoringCase('region', $e->getMessage(), 'Exception should mention missing region');
-        }
-        Assert::assertTrue($exception_thrown, 'Expected InvalidArgumentException was not thrown');
+        $this->expectException(\S3_Media_Sync\Exceptions\Invalid_Region_Exception::class);
+        $this->expectExceptionMessage('Invalid region: . Must be one of:');
+        $this->factory->create($settings);
+    }
+
+    /**
+     * Test client creation with empty region.
+     */
+    public function test_create_client_with_empty_region(): void {
+        $settings = [
+            'bucket' => 'test-bucket',
+            'region' => '',
+            'key' => 'test-key',
+            'secret' => 'test-secret',
+        ];
+
+        $this->expectException(\S3_Media_Sync\Exceptions\Invalid_Region_Exception::class);
+        $this->expectExceptionMessage('Invalid region: . Must be one of:');
+        $this->factory->create($settings);
     }
 
     /**
@@ -122,30 +153,26 @@ class ClientFactoryTest extends TestCase {
         return [
             'complete settings' => [
                 [
-                    'region' => 'test-region',
+                    'bucket' => 'test-bucket',
+                    'region' => 'us-east-1',
                     'object_acl' => 'private',
                 ],
                 'private',
             ],
             'default acl' => [
                 [
-                    'region' => 'test-region',
+                    'bucket' => 'test-bucket',
+                    'region' => 'us-east-1',
                 ],
                 'public-read',
             ],
             'custom acl' => [
                 [
-                    'region' => 'test-region',
+                    'bucket' => 'test-bucket',
+                    'region' => 'us-east-1',
                     'object_acl' => 'authenticated-read',
                 ],
                 'authenticated-read',
-            ],
-            'sanitized acl' => [
-                [
-                    'region' => 'test-region',
-                    'object_acl' => '<script>alert("xss")</script>public-read',
-                ],
-                'public-read',
             ],
         ];
     }
@@ -160,7 +187,8 @@ class ClientFactoryTest extends TestCase {
      */
     public function test_stream_wrapper_configuration(array $settings, string $expected_acl): void {
         $client = $this->factory->create($settings);
-        $this->factory->configure_stream_wrapper($client, $settings);
+        $bucket = S3_Bucket::from_settings($settings);
+        $this->factory->configure_stream_wrapper($client, $bucket);
 
         Assert::assertContains('s3', stream_get_wrappers(), 'Stream wrapper should be registered');
 
@@ -172,11 +200,30 @@ class ClientFactoryTest extends TestCase {
     }
 
     /**
+     * Test stream wrapper configuration with unsanitized ACL.
+     *
+     * @dataProvider data_provider_stream_wrapper_settings
+     * 
+     * @param array  $settings     The settings to test with.
+     * @param string $expected_acl The expected ACL setting.
+     */
+    public function test_stream_wrapper_configuration_with_unsanitized_acl(array $settings): void {
+        $settings['object_acl'] = '<script>alert("xss")</script>public-read';
+        $this->expectException(\S3_Media_Sync\Exceptions\Invalid_Bucket_Exception::class);
+        $this->expectExceptionMessage('Invalid ACL value:');
+        
+        $client = $this->factory->create($settings);
+        $bucket = S3_Bucket::from_settings($settings);
+        $this->factory->configure_stream_wrapper($client, $bucket);
+    }
+
+    /**
      * Test client creation with empty credentials.
      */
     public function test_create_client_with_empty_credentials(): void {
         $settings = [
-            'region' => 'test-region',
+            'bucket' => 'test-bucket',
+            'region' => 'us-east-1',
             'key' => '',
             'secret' => '',
         ];
@@ -193,7 +240,8 @@ class ClientFactoryTest extends TestCase {
      */
     public function test_create_client_with_partial_credentials(): void {
         $settings = [
-            'region' => 'test-region',
+            'bucket' => 'test-bucket',
+            'region' => 'us-east-1',
             'key' => 'test-key',
             // Missing secret
         ];
@@ -203,26 +251,6 @@ class ClientFactoryTest extends TestCase {
 
         $config = $client->getConfig();
         Assert::assertArrayNotHasKey('credentials', $config, 'Client should not have partial credentials configured');
-    }
-
-    /**
-     * Test client creation with invalid region.
-     */
-    public function test_create_client_with_empty_region(): void {
-        $settings = [
-            'region' => '',
-            'key' => 'test-key',
-            'secret' => 'test-secret',
-        ];
-
-        $exception_thrown = false;
-        try {
-            $this->factory->create($settings);
-        } catch (\InvalidArgumentException $e) {
-            $exception_thrown = true;
-            Assert::assertStringContainsStringIgnoringCase('region', $e->getMessage(), 'Exception should mention missing region');
-        }
-        Assert::assertTrue($exception_thrown, 'Expected InvalidArgumentException was not thrown');
     }
 
     /**
@@ -283,14 +311,15 @@ class ClientFactoryTest extends TestCase {
         }
 
         $settings = [
-            'region' => 'test-region',
+            'bucket' => 'test-bucket',
+            'region' => 'us-east-1',
         ];
 
         $client = $this->factory->create($settings);
         Assert::assertInstanceOf(S3ClientInterface::class, $client);
 
         // Test that the client was created with the correct region
-        Assert::assertSame('test-region', $client->getRegion());
+        Assert::assertSame('us-east-1', $client->getRegion());
     }
 
     /**
@@ -303,14 +332,15 @@ class ClientFactoryTest extends TestCase {
         }
 
         $settings = [
-            'region' => 'test-region',
+            'bucket' => 'test-bucket',
+            'region' => 'us-east-1',
         ];
 
         $client = $this->factory->create($settings);
         Assert::assertInstanceOf(S3ClientInterface::class, $client);
 
         // Test that the client was created with the correct region
-        Assert::assertSame('test-region', $client->getRegion());
+        Assert::assertSame('us-east-1', $client->getRegion());
     }
 
     /**
@@ -318,14 +348,15 @@ class ClientFactoryTest extends TestCase {
      */
     public function test_create_client_without_wordpress_proxy(): void {
         $settings = [
-            'region' => 'test-region',
+            'bucket' => 'test-bucket',
+            'region' => 'us-east-1',
         ];
 
         $client = $this->factory->create($settings);
         Assert::assertInstanceOf(S3ClientInterface::class, $client);
 
         // Test that the client was created with the correct region
-        Assert::assertSame('test-region', $client->getRegion());
+        Assert::assertSame('us-east-1', $client->getRegion());
     }
 
     /**

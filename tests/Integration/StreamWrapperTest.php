@@ -15,6 +15,7 @@ use GuzzleHttp\Psr7\Utils;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
 
 /**
  * Test case for S3 Media Sync stream wrapper functionality.
@@ -39,7 +40,8 @@ class StreamWrapperTest extends TestCase {
 					'bucket'     => 'test-bucket',
 					'key'        => 'test-key',
 					'secret'     => 'test-secret',
-					'region'     => 'test-region',
+					'region'     => 'us-east-1',
+					'use_acl'    => true,
 					'object_acl' => 'public-read',
 				],
 			],
@@ -57,7 +59,7 @@ class StreamWrapperTest extends TestCase {
 		$this->settings_handler->update_settings($settings);
 		$this->s3_media_sync->setup();
 
-		Assert::assertContains( 's3', stream_get_wrappers() );
+		Assert::assertContains( 's3', stream_get_wrappers(), 'S3 stream wrapper should be registered' );
 	}
 
 	/**
@@ -105,10 +107,45 @@ class StreamWrapperTest extends TestCase {
 	}
 
 	/**
+	 * Test registering the stream wrapper.
+	 */
+	public function test_register_stream_wrapper(): void {
+		$settings = [
+			'bucket'     => 'test-bucket',
+			'key'       => 'test-key',
+			'secret'    => 'test-secret',
+			'region'    => 'us-east-1',
+			'use_acl'   => true,
+			'object_acl' => 'public-read',
+		];
+
+		$bucket = S3_Bucket::from_settings($settings);
+		$client = new S3Client([
+			'version' => 'latest',
+			'region'  => $bucket->get_region()->get_identifier(),
+			'credentials' => [
+				'key'    => $settings['key'],
+				'secret' => $settings['secret'],
+			],
+		]);
+
+		\S3_Media_Sync_Stream_Wrapper::register($client);
+		$context = stream_context_get_default();
+		$s3_options = stream_context_get_options($context)['s3'] ?? [];
+
+		Assert::assertContains('s3', stream_get_wrappers(), 'S3 stream wrapper should be registered');
+		Assert::assertSame($bucket->get_acl(), $s3_options['ACL'], 'Stream wrapper should have correct ACL');
+		Assert::assertTrue($s3_options['seekable'], 'Stream wrapper should be seekable');
+	}
+
+	/**
 	 * Clean up after each test.
 	 */
 	public function tear_down(): void {
 		parent::tear_down();
+		if (in_array('s3', stream_get_wrappers(), true)) {
+			stream_wrapper_unregister('s3');
+		}
 		Mockery::close();
 	}
 } 

@@ -22,6 +22,13 @@ use S3_Media_Sync\Tests\TestCase;
 class HooksTest extends TestCase {
 
 	/**
+	 * Test settings array.
+	 *
+	 * @var array<string, mixed>
+	 */
+	protected array $settings;
+
+	/**
 	 * Test data for settings scenarios.
 	 *
 	 * @return array[] Array of test data.
@@ -83,15 +90,25 @@ class HooksTest extends TestCase {
 	 * @param bool  $should_be_registered Whether the hooks should be registered.
 	 */
 	public function test_media_syncs_hooks_registration( array $settings, bool $should_be_registered ): void {
-		$this::set_private_property(
-			$this->s3_media_sync::class,
-			$this->s3_media_sync,
-			'settings',
-			$settings
-		);
+		// Update settings through the settings handler
+		$settings_handler = $this->s3_media_sync->get_settings_handler();
+		$settings_handler->update_settings($settings);
 
 		$this->s3_media_sync->setup();
 
 		$this->assert_media_syncs_hooks_registered( $should_be_registered );
+	}
+
+	public function set_up(): void {
+		parent::set_up();
+
+		$this->settings = [
+			'bucket'     => 'test-bucket',
+			'key'       => 'test-key',
+			'secret'    => 'test-secret',
+			'region'    => 'us-east-1',
+			'use_acl'   => true,
+			'object_acl' => 'public-read',
+		];
 	}
 } 
