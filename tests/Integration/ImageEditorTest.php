@@ -9,10 +9,14 @@ namespace S3_Media_Sync\Tests\Integration;
 
 use Mockery;
 use PHPUnit\Framework\Assert;
+use S3_Media_Sync;
+use S3_Media_Sync_Settings;
 use S3_Media_Sync\Tests\TestCase;
 use WP_Image_Editor;
-use S3_Media_Sync\Local_File;
+use S3_Media_Sync\Value_Objects\Local_File;
+use S3_Media_Sync\Value_Objects\S3_File;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\File_Comparison;
 
 /**
  * Test case for S3 Media Sync image editor functionality.
@@ -24,32 +28,20 @@ use S3_Media_Sync\Value_Objects\S3_Bucket;
  * @uses \S3_Media_Sync_Settings
  */
 class ImageEditorTest extends TestCase {
-
+	protected S3_Media_Sync $s3_media_sync;
+	protected $test_file;
+	protected $settings;
 	protected S3_Bucket $bucket;
-
-	/**
-	 * Create a test JPEG image
-	 *
-	 * @return string Raw image data
-	 */
-	protected function create_test_image(): string {
-		$width = 100;
-		$height = 100;
-		
-		$image = imagecreatetruecolor($width, $height);
-		$bg = imagecolorallocate($image, 255, 255, 255);
-		imagefill($image, 0, 0, $bg);
-		
-		ob_start();
-		imagejpeg($image);
-		$data = ob_get_clean();
-		
-		imagedestroy($image);
-		return $data;
-	}
+	protected ?File_Comparison $comparison = null;
 
 	public function set_up(): void {
 		parent::set_up();
+		
+		$this->settings_handler = new S3_Media_Sync_Settings();
+		$this->settings_handler->update_settings($this->default_settings);
+		$this->s3_media_sync = new S3_Media_Sync($this->settings_handler);
+		
+		$this->test_file = $this->create_temp_file();
 
 		// Create a bucket object for testing
 		$this->bucket = S3_Bucket::from_settings([
@@ -189,7 +181,10 @@ class ImageEditorTest extends TestCase {
 		Assert::assertTrue($s3_exists, 'Original file should exist in S3');
 
 		// Clean up
-		unlink($file_path);
+		$local_path = $local_file->get_path();
+		if (file_exists($local_path)) {
+			unlink($local_path);
+		}
 	}
 
 	/**
@@ -228,15 +223,82 @@ class ImageEditorTest extends TestCase {
 
 		// Clean up
 		unlink($error_log_file);
-		unlink($local_file->get_path());
+		$local_path = $local_file->get_path();
+		if (file_exists($local_path)) {
+			unlink($local_path);
+		}
 		ini_set('error_log', $old_error_log);
 	}
 
 	/**
-	 * Clean up after each test.
+	 * Test image editor integration with S3
 	 */
+	public function test_image_editor_integration(): void {
+		// Create a mock S3 client that will handle stream operations
+		$s3_client = $this->create_mock_s3_client([
+			'handle_streams' => true
+		]);
+
+		// Set up the plugin
+		$this->s3_media_sync->setup();
+
+		// Create test image file
+		$local_file = $this->create_temp_file('test-image.jpg', $this->create_test_image());
+		$s3_file = $this->create_test_s3_file($local_file, $this->bucket);
+		$this->comparison = File_Comparison::compare($local_file, $s3_file);
+
+		// Get WordPress image editor
+		$editor = wp_get_image_editor($local_file->get_path());
+		if (is_wp_error($editor)) {
+			Assert::fail('Failed to create image editor: ' . $editor->get_error_message());
+		}
+
+		// Resize the image
+		$editor->resize(100, 100, true);
+		
+		// Save the edited image
+		$saved = $editor->save();
+		if (is_wp_error($saved)) {
+			Assert::fail('Failed to save edited image: ' . $saved->get_error_message());
+		}
+
+		// Verify the file exists locally
+		Assert::assertTrue(file_exists($saved['path']), 'Edited image should exist locally');
+
+		// Verify the file exists on S3
+		$s3_path = 's3://' . $this->bucket->get_name() . '/' . $s3_file->get_key();
+		Assert::assertTrue(file_exists($s3_path), 'Edited image should exist on S3');
+
+		// Clean up
+		$local_path = $local_file->get_path();
+		if (file_exists($local_path)) {
+			unlink($local_path);
+		}
+		if (file_exists($saved['path'])) {
+			unlink($saved['path']);
+		}
+	}
+
+	/**
+	 * Creates a test image
+	 */
+	protected function create_test_image(): string {
+		$image = imagecreatetruecolor(200, 200);
+		imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
+		ob_start();
+		imagejpeg($image);
+		$contents = ob_get_clean();
+		imagedestroy($image);
+		return $contents;
+	}
+
 	public function tear_down(): void {
 		parent::tear_down();
+		if (is_string($this->test_file) && file_exists($this->test_file)) {
+			unlink($this->test_file);
+		} elseif ($this->test_file instanceof Local_File && file_exists($this->test_file->get_path())) {
+			unlink($this->test_file->get_path());
+		}
 		Mockery::close();
 	}
 } 

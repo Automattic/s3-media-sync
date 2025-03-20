@@ -14,6 +14,8 @@ use S3_Media_Sync_Settings;
 use S3_Media_Sync\Tests\TestCase;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
 use S3_Media_Sync\Value_Objects\Local_File;
+use S3_Media_Sync\Value_Objects\S3_File;
+use S3_Media_Sync\Value_Objects\File_Comparison;
 
 /**
  * Test case for S3 Media Sync error handling functionality.
@@ -29,6 +31,8 @@ class ErrorHandlingTest extends TestCase {
 	protected S3_Media_Sync $s3_media_sync;
 	protected $test_file;
 	protected $settings;
+	protected S3_Bucket $bucket;
+	protected ?File_Comparison $comparison = null;
 
 	public function set_up(): void {
 		parent::set_up();
@@ -38,6 +42,14 @@ class ErrorHandlingTest extends TestCase {
 		$this->s3_media_sync = new S3_Media_Sync($this->settings_handler);
 		
 		$this->test_file = $this->create_temp_file();
+
+		// Create a bucket object for testing
+		$this->bucket = S3_Bucket::from_settings([
+			'bucket' => $this->default_settings['bucket'],
+			'region' => $this->default_settings['region'],
+			'use_acl' => $this->default_settings['use_acl'] ?? true,
+			'object_acl' => $this->default_settings['object_acl'] ?? 'private'
+		]);
 	}
 
 	/**
@@ -63,6 +75,8 @@ class ErrorHandlingTest extends TestCase {
 	}
 
 	/**
+	 * Test error handling during operations
+	 *
 	 * @dataProvider data_provider_error_scenarios
 	 */
 	public function test_error_handling_during_operations(string $error_code, string $error_message): void {
@@ -76,42 +90,37 @@ class ErrorHandlingTest extends TestCase {
 		// Set up the plugin
 		$this->s3_media_sync->setup();
 
-		$upload = $this->create_test_upload($this->test_file, 'text/plain');
-		
+		// Create test files
+		$local_file = $this->create_temp_file('test-file.txt', 'Test content');
+		$s3_file = $this->create_test_s3_file($local_file, $this->bucket);
+		$this->comparison = File_Comparison::compare($local_file, $s3_file);
+
+		// Simulate WordPress upload
+		$upload = $this->create_test_upload($local_file, 'text/plain');
+
 		// Set up error logging capture
 		$error_log_file = tempnam(sys_get_temp_dir(), 'phpunit_error_log');
 		$old_error_log = ini_get('error_log');
 		ini_set('error_log', $error_log_file);
-		
-		// Run the test
-		$this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
-		
+
+		// Run the test - this should log the error but still return the upload data
+		$result = $this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
+
 		// Restore error logging
 		ini_set('error_log', $old_error_log);
-		
-		// Check the error log for multiple possible error messages
+
+		// Verify the result is still the original upload data
+		Assert::assertSame($upload, $result, 'Upload data should be returned unchanged even on error');
+
+		// Check the error log
 		$log_content = file_get_contents($error_log_file);
-		
-		$expected_messages = [
-			$error_message,  // Original expected error
-			'Failed to upload',
-			'S3 upload error',
-			"[{$error_code}]",
-			'S3 configuration check failed',
-			'skipping upload'
-		];
-		
-		$message_found = false;
-		foreach ($expected_messages as $message) {
-			if (strpos($log_content, $message) !== false) {
-				$message_found = true;
-				break;
-			}
-		}
-		
-		Assert::assertTrue($message_found, 'Error message should be logged');
-		
+		Assert::assertStringContainsString($error_message, $log_content, 'Error should be logged');
+
 		// Clean up
+		$local_path = $local_file->get_path();
+		if (file_exists($local_path)) {
+			unlink($local_path);
+		}
 		unlink($error_log_file);
 	}
 
@@ -132,60 +141,50 @@ class ErrorHandlingTest extends TestCase {
 		// Set up the plugin
 		$this->s3_media_sync->setup();
 
-		// Make sure we have settings
-		$settings = $this->settings_handler->get_settings();
-		Assert::assertNotEmpty($settings['bucket'], 'Bucket should be set');
+		// Create test files
+		$local_file = $this->create_temp_file('test-file.txt', 'Test content');
+		$s3_file = $this->create_test_s3_file($local_file, $this->bucket);
+		$this->comparison = File_Comparison::compare($local_file, $s3_file);
 
 		// Set up error logging capture
 		$error_log_file = tempnam(sys_get_temp_dir(), 'phpunit_error_log');
 		$old_error_log = ini_get('error_log');
 		ini_set('error_log', $error_log_file);
-		
-		// Add some log entries that would be expected during stream wrapper configuration issues
-		// Integration tests rely on this logging to pass.
-		error_log("S3 Media Sync: Stream wrapper test failed: {$error_message}");
-		error_log("S3 Media Sync: Direct API bucket access failed: [{$error_code}] {$error_message}");
-		
-		// Test stream wrapper path - but this shouldn't be needed as we've already logged the messages we need
-		$s3_path = 's3://' . $settings['bucket'] . '/test.jpg';
-		@file_exists($s3_path);
-		
-		// Restore error logging
-		ini_set('error_log', $old_error_log);
-		
-		// Check the error log for multiple possible error messages
-		$log_content = file_get_contents($error_log_file);
-		
-		$expected_messages = [
-			$error_message,  // Original expected error
-			'Stream wrapper test failed',
-			"[{$error_code}]",
-			'Direct API bucket access failed',
-			'API bucket access failed',
-			'bucket access failed'
-		];
-		
-		$message_found = false;
-		foreach ($expected_messages as $message) {
-			if (strpos($log_content, $message) !== false) {
-				$message_found = true;
-				break;
+
+		// Test file operations
+		try {
+			$s3_path = 's3://' . $this->bucket->get_name() . '/' . $s3_file->get_key();
+			file_get_contents($s3_path);
+			Assert::fail('Should not be able to read from S3');
+		} catch (\Exception $e) {
+			// For stream wrapper operations, we need to check the error code in the message
+			$error_found = false;
+			$message = $e->getMessage();
+			if (strpos($message, $error_code) !== false) {
+				$error_found = true;
+			} else if (strpos($message, $error_message) !== false) {
+				$error_found = true;
+			} else if (strpos($message, 'Not Found') !== false) {
+				// For stream wrapper, we might get a "Not Found" error
+				$error_found = true;
 			}
+			Assert::assertTrue($error_found, 'Error code or message should be present in exception: ' . $message);
 		}
-		
-		Assert::assertTrue($message_found, 'Stream wrapper error should be logged');
-		
+
 		// Clean up
+		$local_path = $local_file->get_path();
+		if (file_exists($local_path)) {
+			unlink($local_path);
+		}
 		unlink($error_log_file);
 	}
 
 	public function tear_down(): void {
 		parent::tear_down();
-		if ($this->test_file) {
-			if ($this->test_file instanceof Local_File) {
-				unlink($this->test_file->get_path());
-			} elseif (is_string($this->test_file)) {
-				unlink($this->test_file);
+		if ($this->test_file instanceof Local_File) {
+			$test_file_path = $this->test_file->get_path();
+			if (file_exists($test_file_path)) {
+				unlink($test_file_path);
 			}
 		}
 		Mockery::close();
