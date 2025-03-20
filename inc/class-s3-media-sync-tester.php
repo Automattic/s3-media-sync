@@ -2,6 +2,7 @@
 
 use S3_Media_Sync\S3_Media_Sync_Client_Factory;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\S3_File;
 
 /**
  * S3 Media Sync Tester Class
@@ -208,9 +209,6 @@ class S3_Media_Sync_Tester {
     protected function test_operations() {
         try {
             $this->debug_info[] = "Step 3: Testing basic S3 operations";
-
-            // Extract bucket name for operations
-            $bucket_name = $this->bucket->get_name();
             
             // Check if ACLs are supported - if use_acl is set to false, we'll skip the ACL check
             $use_acl = isset($this->settings['use_acl']) ? $this->settings['use_acl'] : true;
@@ -219,7 +217,7 @@ class S3_Media_Sync_Tester {
                 // Try to check if the bucket allows ACLs
                 try {
                     $factory = new S3_Media_Sync_Client_Factory();
-                    $acl_allowed = $factory->does_bucket_allow_acl($this->s3_client, $bucket_name);
+                    $acl_allowed = $factory->does_bucket_allow_acl($this->s3_client, $this->bucket->get_name());
                     
                     if (!$acl_allowed) {
                         $this->debug_info[] = "- Detected bucket has ACLs disabled. Will operate without ACLs.";
@@ -237,13 +235,13 @@ class S3_Media_Sync_Tester {
             
             // Test operation
             $test_key = 'wp-content/uploads/s3-media-sync-test-' . time() . '.txt';
-            $this->debug_info[] = "- Attempting to put a test object: $test_key";
+            $s3_file = S3_File::from_key($this->bucket, $test_key);
+            $this->debug_info[] = "- Attempting to put a test object: " . $s3_file->get_key();
             
-            $params = [
-                'Bucket' => $bucket_name,
-                'Key'    => $test_key,
-                'Body'   => 'This is a test file from S3 Media Sync',
-            ];
+            $params = array_merge(
+                $s3_file->get_aws_params(),
+                ['Body' => 'This is a test file from S3 Media Sync']
+            );
             
             // Only set ACL if the bucket supports it and ACLs are enabled in settings
             if ($use_acl) {
@@ -274,17 +272,11 @@ class S3_Media_Sync_Tester {
             }
             
             $this->debug_info[] = "- Attempting to get the test object";
-            $this->s3_client->getObject([
-                'Bucket' => $bucket_name,
-                'Key'    => $test_key,
-            ]);
+            $result = $this->s3_client->getObject($s3_file->get_aws_params());
             $this->debug_info[] = "- Successfully downloaded test object";
             
             $this->debug_info[] = "- Attempting to delete the test object";
-            $this->s3_client->deleteObject([
-                'Bucket' => $bucket_name,
-                'Key'    => $test_key,
-            ]);
+            $this->s3_client->deleteObject($s3_file->get_aws_params());
             $this->debug_info[] = "- Successfully deleted test object";
             
             $this->debug_info[] = "All tests completed successfully!";

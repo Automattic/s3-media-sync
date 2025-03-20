@@ -12,6 +12,8 @@ use PHPUnit\Framework\Assert;
 use S3_Media_Sync;
 use S3_Media_Sync_Settings;
 use S3_Media_Sync\Tests\TestCase;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\Local_File;
 
 /**
  * Test case for S3 Media Sync error handling functionality.
@@ -63,8 +65,8 @@ class ErrorHandlingTest extends TestCase {
 	/**
 	 * @dataProvider data_provider_error_scenarios
 	 */
-	public function test_error_handling_during_operations($error_code, $error_message) {
-		// Create a mock S3 client that will fail operations
+	public function test_error_handling_during_operations(string $error_code, string $error_message): void {
+		// Create a mock S3 client that will fail
 		$s3_client = $this->create_mock_s3_client([
 			'error_code' => $error_code,
 			'error_message' => $error_message,
@@ -74,7 +76,7 @@ class ErrorHandlingTest extends TestCase {
 		// Set up the plugin
 		$this->s3_media_sync->setup();
 
-		$upload = $this->create_test_upload($this->test_file);
+		$upload = $this->create_test_upload($this->test_file, 'text/plain');
 		
 		// Set up error logging capture
 		$error_log_file = tempnam(sys_get_temp_dir(), 'phpunit_error_log');
@@ -114,14 +116,17 @@ class ErrorHandlingTest extends TestCase {
 	}
 
 	/**
+	 * Test stream wrapper error handling
+	 *
 	 * @dataProvider data_provider_error_scenarios
 	 */
-	public function test_stream_wrapper_error_handling($error_code, $error_message) {
-		// Create a mock S3 client that will fail operations
+	public function test_stream_wrapper_error_handling(string $error_code, string $error_message): void {
+		// Create a mock S3 client that will fail
 		$s3_client = $this->create_mock_s3_client([
 			'error_code' => $error_code,
 			'error_message' => $error_message,
-			'should_succeed' => false
+			'should_succeed' => false,
+			'handle_streams' => true
 		]);
 
 		// Set up the plugin
@@ -176,8 +181,12 @@ class ErrorHandlingTest extends TestCase {
 
 	public function tear_down(): void {
 		parent::tear_down();
-		if ($this->test_file && file_exists($this->test_file)) {
-			unlink($this->test_file);
+		if ($this->test_file) {
+			if ($this->test_file instanceof Local_File) {
+				unlink($this->test_file->get_path());
+			} elseif (is_string($this->test_file)) {
+				unlink($this->test_file);
+			}
 		}
 		Mockery::close();
 	}

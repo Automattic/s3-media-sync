@@ -17,9 +17,12 @@ use GuzzleHttp\Psr7\Utils;
 use Mockery;
 use S3_Media_Sync;
 use S3_Media_Sync_Settings;
-use S3_Media_Sync_Client_Factory;
+use S3_Media_Sync\Client\S3_Media_Sync_Client_Factory;
 use S3_Media_Sync_Stream_Wrapper;
 use Yoast\WPTestUtils\WPIntegration\TestCase as WPTestCase;
+use S3_Media_Sync\Value_Objects\Local_File;
+use S3_Media_Sync\Value_Objects\S3_File;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
 
 /**
  * Base test case for S3 Media Sync.
@@ -458,9 +461,9 @@ abstract class TestCase extends WPTestCase {
 	 *
 	 * @param string $filename Optional filename. If not provided, a random name will be used.
 	 * @param string $content Optional content for the file.
-	 * @return string The path to the created file.
+	 * @return Local_File The created local file object.
 	 */
-	protected function create_temp_file(?string $filename = null, string $content = 'Test content'): string {
+	protected function create_temp_file(?string $filename = null, string $content = 'Test content'): Local_File {
 		if ($filename === null) {
 			$file_path = wp_tempnam();
 		} else {
@@ -476,27 +479,44 @@ abstract class TestCase extends WPTestCase {
 		}
 
 		file_put_contents($file_path, $content);
-		return $file_path;
+		return Local_File::from_path($file_path);
 	}
 
 	/**
 	 * Creates a test upload array for simulating WordPress uploads.
 	 *
-	 * @param string $file_path The path to the file.
+	 * @param Local_File|string $file The local file object or path.
 	 * @param string $mime_type The mime type of the file.
 	 * @return array The upload array.
 	 */
-	protected function create_test_upload(string $file_path, string $mime_type = 'image/jpeg'): array {
+	protected function create_test_upload($file, string $mime_type): array {
+		$file_path = $file instanceof Local_File ? $file->get_path() : $file;
+		$file_name = basename($file_path);
+		
 		$upload_dir = wp_upload_dir();
+		$url = $upload_dir['url'] . '/' . $file_name;
+		
 		return [
 			'file' => $file_path,
-			'url' => str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $file_path),
-			'type' => $mime_type,
-			'path' => $file_path,
-			'subdir' => '',
-			'basedir' => dirname($file_path),
-			'baseurl' => $upload_dir['baseurl']
+			'url' => $url,
+			'type' => $mime_type
 		];
+	}
+
+	/**
+	 * Creates a test S3 file object.
+	 *
+	 * @param Local_File $local_file The local file object.
+	 * @param S3_Bucket $bucket The S3 bucket object.
+	 * @return S3_File The S3 file object.
+	 */
+	protected function create_test_s3_file(Local_File $local_file, S3_Bucket $bucket): S3_File {
+		$uploads = wp_upload_dir();
+		$uploads_path = trailingslashit($uploads['basedir']);
+		$file_subpath = str_replace($uploads_path, '', $local_file->get_path());
+		$s3_key = 'wp-content/uploads/' . $file_subpath;
+		
+		return S3_File::from_key($bucket, $s3_key);
 	}
 
 	/**

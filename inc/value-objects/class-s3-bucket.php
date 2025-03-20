@@ -279,4 +279,15 @@ class S3_Bucket {
     public function get_acl(): string {
         return $this->object_acl ?? 'public-read';
     }
+
+    /**
+     * Check if this bucket matches another bucket
+     */
+    public function equals(S3_Bucket $other): bool {
+        return $this->name === $other->name &&
+               $this->prefix === $other->prefix &&
+               $this->region->equals($other->region) &&
+               $this->use_acl === $other->use_acl &&
+               $this->object_acl === $other->object_acl;
+    }
 } 

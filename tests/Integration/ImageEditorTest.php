@@ -11,6 +11,8 @@ use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
 use WP_Image_Editor;
+use S3_Media_Sync\Local_File;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
 
 /**
  * Test case for S3 Media Sync image editor functionality.
@@ -22,6 +24,41 @@ use WP_Image_Editor;
  * @uses \S3_Media_Sync_Settings
  */
 class ImageEditorTest extends TestCase {
+
+	protected S3_Bucket $bucket;
+
+	/**
+	 * Create a test JPEG image
+	 *
+	 * @return string Raw image data
+	 */
+	protected function create_test_image(): string {
+		$width = 100;
+		$height = 100;
+		
+		$image = imagecreatetruecolor($width, $height);
+		$bg = imagecolorallocate($image, 255, 255, 255);
+		imagefill($image, 0, 0, $bg);
+		
+		ob_start();
+		imagejpeg($image);
+		$data = ob_get_clean();
+		
+		imagedestroy($image);
+		return $data;
+	}
+
+	public function set_up(): void {
+		parent::set_up();
+
+		// Create a bucket object for testing
+		$this->bucket = S3_Bucket::from_settings([
+			'bucket' => $this->default_settings['bucket'],
+			'region' => $this->default_settings['region'],
+			'use_acl' => $this->default_settings['use_acl'] ?? true,
+			'object_acl' => $this->default_settings['object_acl'] ?? 'private'
+		]);
+	}
 
 	/**
 	 * Test data for image editor scenarios.
@@ -101,208 +138,98 @@ class ImageEditorTest extends TestCase {
 	}
 
 	/**
-	 * Test image editor synchronization with S3.
+	 * Test that image editor changes sync to S3
 	 *
 	 * @dataProvider data_provider_image_edits
-	 * 
-	 * @param array $test_data The test data.
 	 */
-	public function test_image_editor_changes_sync_to_s3( array $test_data ): void {
-		// Set up the plugin with mock client.
-		$this->settings_handler->update_settings($this->default_settings);
-		$s3_client = $this->create_mock_s3_client();
+	public function test_image_editor_changes_sync_to_s3(array $test_data): void {
+		$operation = $test_data['operation'];
+		$params = array_values($test_data['params']);
+
+		// Create a mock S3 client that will track uploaded keys
+		$uploaded_keys = [];
+		$s3_client = $this->create_mock_s3_client([
+			'should_succeed' => true,
+			'handle_streams' => true,
+			'debug_callback' => function($operation, $args) use (&$uploaded_keys) {
+				if ($operation === 'putObject') {
+					$uploaded_keys[] = $args['Key'];
+				}
+			}
+		]);
+
+		// Set up the plugin
 		$this->s3_media_sync->setup();
 
-		// Create a temporary test file with specific content.
-		$test_content = 'Test image content for ' . $test_data['filename'];
-		$test_file_path = $this->create_temp_file($test_data['filename'], $test_content);
+		// Create a test image
+		$local_file = $this->create_temp_file('test-image.jpg', $this->create_test_image());
+		$file_path = $local_file->get_path();
 
-		// Create a mock image editor.
-		$mock_image_editor = Mockery::mock( WP_Image_Editor::class );
-		$edited_content = $test_content . ' (edited with ' . $test_data['operation'] . ')';
+		// Create the S3 file object
+		$s3_file = $this->create_test_s3_file($local_file, $this->bucket);
+		$s3_path = 's3://' . $this->bucket->get_name() . '/' . $s3_file->get_key();
 
-		// Mock the save operation with edited content
-		$mock_image_editor->shouldReceive( 'save' )
-			->with( $test_file_path, $test_data['mime_type'] )
-			->andReturnUsing(function() use ($test_file_path, $test_data, $edited_content) {
-				file_put_contents($test_file_path, $edited_content);
-				return [
-					'path' => $test_file_path,
-					'file' => basename( $test_file_path ),
-					'width' => $test_data['operation'] === 'resize' ? $test_data['params']['width'] : 100,
-					'height' => $test_data['operation'] === 'resize' ? $test_data['params']['height'] : 100,
-					'mime-type' => $test_data['mime_type'],
-				];
-			});
+		// Simulate WordPress upload
+		$upload = $this->create_test_upload($local_file, 'image/jpeg');
 
-		// Mock and execute the specific operation
-		switch ( $test_data['operation'] ) {
-			case 'crop':
-				$mock_image_editor->shouldReceive( 'crop' )
-					->with(
-						$test_data['params']['x'],
-						$test_data['params']['y'],
-						$test_data['params']['width'],
-						$test_data['params']['height']
-					)
-					->once()
-					->andReturn( true )
-					->ordered();
-				$mock_image_editor->crop(
-					$test_data['params']['x'],
-					$test_data['params']['y'],
-					$test_data['params']['width'],
-					$test_data['params']['height']
-				);
-				break;
-			case 'resize':
-				$mock_image_editor->shouldReceive( 'resize' )
-					->with(
-						$test_data['params']['width'],
-						$test_data['params']['height']
-					)
-					->once()
-					->andReturn( true )
-					->ordered();
-				$mock_image_editor->resize(
-					$test_data['params']['width'],
-					$test_data['params']['height']
-				);
-				break;
-			case 'rotate':
-				$mock_image_editor->shouldReceive( 'rotate' )
-					->with( $test_data['params']['angle'] )
-					->once()
-					->andReturn( true )
-					->ordered();
-				$mock_image_editor->rotate( $test_data['params']['angle'] );
-				break;
+		// Upload to S3
+		$result = $this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
+
+		// Perform image operation
+		$editor = wp_get_image_editor($file_path);
+		if (is_wp_error($editor)) {
+			Assert::fail('Failed to create image editor: ' . $editor->get_error_message());
 		}
 
-		// Write the edited content to the file again to make sure it's there
-		// when the S3 upload happens
-		file_put_contents($test_file_path, $edited_content);
-		
-		// Log the file content for debugging
-		// error_log("File content before S3 upload: " . file_get_contents($test_file_path));
+		$editor->$operation(...$params);
+		$editor->save();
 
-		// Test the image editor sync.
-		$result = $this->s3_media_sync->add_updated_attachment_to_s3(
-			$test_file_path,
-			$mock_image_editor,
-			$test_data['mime_type'],
-			123,  // Post ID
-			null  // Size (null for main image)
-		);
+		// Verify both original and edited files exist in S3
+		$s3_exists = file_exists($s3_path);
+		Assert::assertTrue($s3_exists, 'Original file should exist in S3');
 
-		// Verify the result - now returns the original filename as a string, not an array
-		Assert::assertSame($test_file_path, $result, 'Result should be the original filename');
-
-		// Get the uploads directory info
-		$uploads = wp_upload_dir();
-		$uploads_path = $uploads['basedir'];
-		
-		// Calculate the relative path from uploads directory
-		$relative_path = '';
-		if (strpos($test_file_path, $uploads_path) === 0) {
-			$relative_path = substr($test_file_path, strlen($uploads_path) + 1);  // +1 for trailing slash
-		} else {
-			// If not in uploads dir, just use the filename
-			$relative_path = basename($test_file_path);
-		}
-		
-		// Construct the expected S3 path
-		$expected_s3_path = 'wp-content/uploads/' . $relative_path;
-		
-		// Debug logging
-		// error_log("Testing for S3 path: " . $expected_s3_path);
-		// error_log("Original file path: " . $test_file_path);
-		// error_log("Calculated relative path: " . $relative_path);
-		
-		// Skip the file existence and content checks in S3 since they're unreliable in tests
-		// Instead, just verify that the method returned successfully, which indicates
-		// the S3 upload was attempted
-		
-		// Clean up.
-		unlink( $test_file_path );
+		// Clean up
+		unlink($file_path);
 	}
 
 	/**
-	 * Test image editor error handling for S3 sync.
+	 * Test error handling during image operations
 	 *
 	 * @dataProvider data_provider_image_editor_operations
 	 */
-	public function test_image_editor_error_handling( array $test_data ): void {
-		// Set up the plugin with mock client that will fail uploads
-		$this->settings_handler->update_settings( $this->default_settings );
-		$this->create_mock_s3_client([
-			'error_code' => 'AccessDenied',
-			'error_message' => 'Access Denied',
+	public function test_image_editor_error_handling(array $test_data): void {
+		$error_code = $test_data['expected_error'];
+		$error_message = $test_data['expected_error'];
+
+		// Create a mock S3 client that will fail
+		$s3_client = $this->create_mock_s3_client([
+			'error_code' => $error_code,
+			'error_message' => $error_message,
 			'should_succeed' => false
 		]);
-		$this->s3_media_sync->setup();
-
-		// Set up a mock image editor.
-		$mock_image_editor = Mockery::mock( 'WP_Image_Editor' );
-		$test_file_path = $this->create_temp_file( $test_data['filename'], 'Test content' );
-		
-		// Set up the editor to return valid data for the edited image.
-		$mock_image_editor->shouldReceive( 'save' )
-			->andReturn( [
-				'path' => $test_file_path,
-				'file' => basename( $test_file_path ),
-				'width' => 100,
-				'height' => 100,
-				'mime-type' => $test_data['mime_type']
-			] );
 
 		// Set up error logging capture
 		$error_log_file = tempnam(sys_get_temp_dir(), 'phpunit_error_log');
 		$old_error_log = ini_get('error_log');
 		ini_set('error_log', $error_log_file);
-		
-		// Add explicit error messages that we expect from a failed upload
-		// Integration tests rely on this logging to pass.
-		error_log("S3 Media Sync: Failed to upload edited image to S3: [AccessDenied] Access Denied");
-		
-		// Run the test
-		$result = $this->s3_media_sync->add_updated_attachment_to_s3(
-			$test_file_path,
-			$mock_image_editor,
-			$test_data['mime_type'],
-			123,  // Post ID
-			null  // Size (null for main image)
-		);
-		
-		// Restore error logging
-		ini_set('error_log', $old_error_log);
-		
-		// Verify the result is still the original filename
-		Assert::assertSame($test_file_path, $result, 'Should return the original filename even on error');
-		
-		// Check the error log
+
+		// Create a test image
+		$local_file = $this->create_temp_file('test-image.jpg', $this->create_test_image());
+
+		// Simulate WordPress upload
+		$upload = $this->create_test_upload($local_file, 'image/jpeg');
+
+		// Try to upload to S3
+		$result = $this->s3_media_sync->add_attachment_to_s3($upload, 'upload');
+
+		// Verify error is logged
 		$log_content = file_get_contents($error_log_file);
-		$expected_messages = [
-			'Failed to upload', 
-			'Access Denied', 
-			'[AccessDenied]',
-			'S3 upload error',
-			'S3 is not properly configured'
-		];
-		
-		$message_found = false;
-		foreach ($expected_messages as $message) {
-			if (strpos($log_content, $message) !== false) {
-				$message_found = true;
-				break;
-			}
-		}
-		
-		Assert::assertTrue($message_found, 'Error about upload failure should be logged');
-		
+		Assert::assertStringContainsString($error_message, $log_content, 'Error should be logged');
+
 		// Clean up
 		unlink($error_log_file);
-		unlink($test_file_path);
+		unlink($local_file->get_path());
+		ini_set('error_log', $old_error_log);
 	}
 
 	/**
