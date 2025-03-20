@@ -24,10 +24,10 @@ class S3_Media_Sync_Settings {
 				$this->settings['region'] = $region->get_identifier();
 			} catch (\S3_Media_Sync\Exceptions\Invalid_Region_Exception $e) {
 				// If region is invalid, remove it from settings
-				error_log(sprintf(
-					'S3 Media Sync: Removed invalid region "%s" from settings',
-					$this->settings['region']
-				));
+				// error_log(sprintf(
+				// 	'S3 Media Sync: Removed invalid region "%s" from settings',
+				// 	$this->settings['region']
+				// ));
 				unset($this->settings['region']);
 				update_option('s3_media_sync_settings', $this->settings);
 			}
@@ -160,7 +160,7 @@ class S3_Media_Sync_Settings {
 				}
 
 				// Log the full error for debugging
-				error_log('S3 Media Sync: Bucket validation failed - ' . $error_msg);
+				// error_log('S3 Media Sync: Bucket validation failed - ' . $error_msg);
 
 				// Show only the friendly message to the user
 				add_settings_error(
@@ -245,7 +245,7 @@ class S3_Media_Sync_Settings {
 				]);
 			} catch (\Exception $e) {
 				// Log the full error for debugging
-				error_log('S3 Media Sync: Bucket access test failed - ' . $e->getMessage());
+				// error_log('S3 Media Sync: Bucket access test failed - ' . $e->getMessage());
 
 				// Determine user-friendly message based on error type
 				$error_msg = $e->getMessage();

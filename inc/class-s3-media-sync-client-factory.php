@@ -87,7 +87,7 @@ class S3_Media_Sync_Client_Factory {
 	public function configure_stream_wrapper( S3Client $client, S3_Bucket $bucket ): void {
 		// Ensure we have a valid client
 		if ( !$client ) {
-			error_log('S3 Media Sync: Cannot configure stream wrapper - S3 client is null');
+			// error_log('S3 Media Sync: Cannot configure stream wrapper - S3 client is null');
 			return;
 		}
 
@@ -95,14 +95,14 @@ class S3_Media_Sync_Client_Factory {
 			// Check if stream wrapper is already registered - if so, unregister it first
 			if ( in_array('s3', stream_get_wrappers()) ) {
 				stream_wrapper_unregister('s3');
-				error_log('S3 Media Sync: Unregistered existing S3 stream wrapper');
+				// error_log('S3 Media Sync: Unregistered existing S3 stream wrapper');
 			}
 
 			// Register the stream wrapper using the AWS SDK method
 			$client->registerStreamWrapper();
 			
 			if ( in_array('s3', stream_get_wrappers()) ) {
-				error_log('S3 Media Sync: Successfully registered S3 stream wrapper');
+				// error_log('S3 Media Sync: Successfully registered S3 stream wrapper');
 				
 				// Configure options for the stream wrapper
 				// Special handling for test environment to ensure ACLs are set as expected
@@ -114,15 +114,15 @@ class S3_Media_Sync_Client_Factory {
 				$acl = $bucket->should_use_acl() ? $bucket->get_object_acl() : null;
 				
 				if ($is_test_environment) {
-					error_log('S3 Media Sync: Test environment detected, using ACL: ' . $acl);
+					// error_log('S3 Media Sync: Test environment detected, using ACL: ' . $acl);
 				} else if ($bucket->should_use_acl()) {
 					// Normal environment ACL handling
 					// Check if the bucket allows ACLs
 					if ($this->does_bucket_allow_acl($client, $bucket->get_name())) {
-						error_log('S3 Media Sync: Using ACL setting: ' . $acl);
+						// error_log('S3 Media Sync: Using ACL setting: ' . $acl);
 					} else {
 						// Bucket doesn't allow ACLs - update settings
-						error_log('S3 Media Sync: Bucket does not allow ACLs - disabling ACL setting');
+						// error_log('S3 Media Sync: Bucket does not allow ACLs - disabling ACL setting');
 						$settings = get_option('s3_media_sync_settings', []);
 						$settings['use_acl'] = false;
 						update_option('s3_media_sync_settings', $settings);
@@ -143,27 +143,27 @@ class S3_Media_Sync_Client_Factory {
 					// Test bucket access with the stream wrapper
 					$test_path = 's3://' . $bucket->get_name();
 					if (@file_exists($test_path)) {
-						error_log('S3 Media Sync: Stream wrapper test successful - bucket exists');
+						// error_log('S3 Media Sync: Stream wrapper test successful - bucket exists');
 					} else {
 						$error = error_get_last();
-						error_log('S3 Media Sync: Stream wrapper test failed: ' . ($error ? $error['message'] : 'Unknown error'));
+						// error_log('S3 Media Sync: Stream wrapper test failed: ' . ($error ? $error['message'] : 'Unknown error'));
 						
 						// Try a direct API call to test bucket access
 						try {
 							$result = $client->headBucket(['Bucket' => $bucket->get_name()]);
-							error_log('S3 Media Sync: Direct API bucket access successful');
+							// error_log('S3 Media Sync: Direct API bucket access successful');
 						} catch (\Exception $e) {
-							error_log('S3 Media Sync: Direct API bucket access failed: ' . $e->getMessage());
+							// error_log('S3 Media Sync: Direct API bucket access failed: ' . $e->getMessage());
 						}
 					}
 				} else {
-					error_log('S3 Media Sync: Skipping bucket verification in test environment');
+					// error_log('S3 Media Sync: Skipping bucket verification in test environment');
 				}
 			} else {
-				error_log('S3 Media Sync: Failed to register S3 stream wrapper');
+				// error_log('S3 Media Sync: Failed to register S3 stream wrapper');
 			}
 		} catch (\Exception $e) {
-			error_log('S3 Media Sync: Exception during stream wrapper configuration: ' . $e->getMessage());
+			// error_log('S3 Media Sync: Exception during stream wrapper configuration: ' . $e->getMessage());
 		}
 	}
 
@@ -185,7 +185,7 @@ class S3_Media_Sync_Client_Factory {
 			if ( isset($result['OwnershipControls']['Rules'][0]['ObjectOwnership']) && 
 				$result['OwnershipControls']['Rules'][0]['ObjectOwnership'] === 'BucketOwnerEnforced') {
 				// BucketOwnerEnforced means ACLs are disabled
-				error_log('S3 Media Sync: Bucket has BucketOwnerEnforced setting - ACLs are disabled');
+				// error_log('S3 Media Sync: Bucket has BucketOwnerEnforced setting - ACLs are disabled');
 				return false;
 			}
 			
@@ -193,7 +193,7 @@ class S3_Media_Sync_Client_Factory {
 			return true;
 		} catch (\Exception $e) {
 			// If we can't determine the ownership controls, assume ACLs are allowed
-			error_log('S3 Media Sync: Could not determine bucket ACL settings: ' . $e->getMessage());
+			// error_log('S3 Media Sync: Could not determine bucket ACL settings: ' . $e->getMessage());
 			return true;
 		}
 	}

@@ -49,7 +49,7 @@ class S3_Media_Sync {
 
 		// Only proceed with stream wrapper and hooks if we have all required settings
 		if (!$this->settings_handler->has_required_settings()) {
-			error_log('S3 Media Sync: Required settings missing - hooks not registered');
+			// error_log('S3 Media Sync: Required settings missing - hooks not registered');
 			return;
 		}
 
@@ -73,15 +73,15 @@ class S3_Media_Sync {
 			// Debug log to confirm hook registration
 			$sync_thumbnails_status = isset($this->settings['sync_thumbnails']) ? 
 				($this->settings['sync_thumbnails'] !== false ? 'enabled' : 'disabled') : 'enabled (default)';
-			error_log('S3 Media Sync: Hooks registered for uploads, deletion, image editing, and thumbnail generation. Thumbnail syncing is ' . $sync_thumbnails_status);
+			// error_log('S3 Media Sync: Hooks registered for uploads, deletion, image editing, and thumbnail generation. Thumbnail syncing is ' . $sync_thumbnails_status);
 		} catch (\Exception $e) {
-			error_log(sprintf(
-				'S3 Media Sync: Failed to configure for bucket "%s" in region %s (%s) - %s',
-				$this->bucket->get_name(),
-				$this->bucket->get_region()->get_identifier(),
-				$this->bucket->get_region()->get_display_name(),
-				$e->getMessage()
-			));
+			// error_log(sprintf(
+			// 	'S3 Media Sync: Failed to configure for bucket "%s" in region %s (%s) - %s',
+			// 	$this->bucket->get_name(),
+			// 	$this->bucket->get_region()->get_identifier(),
+			// 	$this->bucket->get_region()->get_display_name(),
+			// 	$e->getMessage()
+			// ));
 		}
 	}
 
@@ -110,6 +110,7 @@ class S3_Media_Sync {
 		try {
 			// Ensure we have a valid S3 client
 			if (!$this->is_s3_configured()) {
+				// Integration test relies on this logging
 				error_log('S3 Media Sync: Failed to upload - S3 is not properly configured');
 				return $upload;
 			}
@@ -117,7 +118,7 @@ class S3_Media_Sync {
 			// Get the file path
 			$file_path = $upload['file'];
 			if (!file_exists($file_path)) {
-				error_log(sprintf('S3 Media Sync: Failed to upload - File not found: %s', $file_path));
+				// error_log(sprintf('S3 Media Sync: Failed to upload - File not found: %s', $file_path));
 				return $upload;
 			}
 
@@ -145,22 +146,22 @@ class S3_Media_Sync {
 				// Attempt to upload the file
 				$this->get_client_factory()->create($this->settings)->putObject($args);
 
-				error_log(sprintf('S3 Media Sync: Successfully uploaded %s to s3://%s/%s',
-					$file_path,
-					$this->bucket->get_name(),
-					$s3_key
-				));
+				// error_log(sprintf('S3 Media Sync: Successfully uploaded %s to s3://%s/%s',
+				// 	$file_path,
+				// 	$this->bucket->get_name(),
+				// 	$s3_key
+				// ));
 			} catch (\Aws\S3\Exception\S3Exception $e) {
-				error_log(sprintf('S3 Media Sync: S3 upload error [%s] - %s',
-					$e->getAwsErrorCode(),
-					$e->getMessage()
-				));
+				// error_log(sprintf('S3 Media Sync: S3 upload error [%s] - %s',
+				// 	$e->getAwsErrorCode(),
+				// 	$e->getMessage()
+				// ));
 				return $upload;
 			}
 
 			return $upload;
 		} catch (\Exception $e) {
-			error_log(sprintf('S3 Media Sync: Failed to upload - %s', $e->getMessage()));
+			// error_log(sprintf('S3 Media Sync: Failed to upload - %s', $e->getMessage()));
 			return $upload;
 		}
 	}
@@ -179,23 +180,23 @@ class S3_Media_Sync {
 	public function add_updated_attachment_to_s3( $filename, $image, $mime_type, $post_id, $size = null ) {
 		// Check if file exists after saving
 		if (!file_exists($filename)) {
-			error_log('S3 Media Sync: Image editor file does not exist: ' . $filename);
+			// error_log('S3 Media Sync: Image editor file does not exist: ' . $filename);
 			return $filename;
 		}
 
 		// Get file info for logging
 		$file_size = filesize($filename);
-		error_log('S3 Media Sync: Processing image editor file - File: ' . $filename . ', Size: ' . $file_size . ' bytes, MIME: ' . $mime_type . ', Post ID: ' . $post_id . ', Size variant: ' . ($size ? $size : 'original'));
+		// error_log('S3 Media Sync: Processing image editor file - File: ' . $filename . ', Size: ' . $file_size . ' bytes, MIME: ' . $mime_type . ', Post ID: ' . $post_id . ', Size variant: ' . ($size ? $size : 'original'));
 
 		// If this is a size/thumbnail and thumbnail syncing is disabled, skip it
 		if ($size && isset($this->settings['sync_thumbnails']) && $this->settings['sync_thumbnails'] === false) {
-			error_log('S3 Media Sync: Skipping image size "' . $size . '" due to sync_thumbnails setting disabled');
+			// error_log('S3 Media Sync: Skipping image size "' . $size . '" due to sync_thumbnails setting disabled');
 			return $filename;
 		}
 
 		// Verify S3 is properly configured
 		if (!$this->is_s3_configured()) {
-			error_log('S3 Media Sync: S3 is not properly configured, skipping image editor upload');
+			// error_log('S3 Media Sync: S3 is not properly configured, skipping image editor upload');
 			return $filename;
 		}
 
@@ -213,24 +214,24 @@ class S3_Media_Sync {
 			$file_subpath = str_replace($uploads_path, '', $filename);
 			$relative_path = 'wp-content/uploads/' . $file_subpath;
 			
-			error_log('S3 Media Sync: Processing edited image: ' . $filename . ' -> S3:' . $relative_path);
+			// error_log('S3 Media Sync: Processing edited image: ' . $filename . ' -> S3:' . $relative_path);
 			
 			// First try using stream wrapper
 			$uploaded = $this->try_stream_wrapper_upload($s3_client, $filename, $relative_path);
 			
 			// If stream wrapper failed, try direct API
 			if (!$uploaded) {
-				error_log('S3 Media Sync: Stream wrapper upload failed for edited image, trying direct API');
+				// error_log('S3 Media Sync: Stream wrapper upload failed for edited image, trying direct API');
 				$uploaded = $this->try_direct_s3_upload($s3_client, $filename, $relative_path);
 			}
 			
 			if ($uploaded) {
-				error_log('S3 Media Sync: Successfully uploaded edited image to S3');
+				// error_log('S3 Media Sync: Successfully uploaded edited image to S3');
 			} else {
-				error_log('S3 Media Sync: Failed to upload edited image to S3 after all attempts');
+				// error_log('S3 Media Sync: Failed to upload edited image to S3 after all attempts');
 			}
 		} catch (\Exception $e) {
-			error_log('S3 Media Sync image editor exception: ' . $e->getMessage());
+			// error_log('S3 Media Sync image editor exception: ' . $e->getMessage());
 		}
 		
 		return $filename;
@@ -266,7 +267,7 @@ class S3_Media_Sync {
 			$main_path = 'wp-content/uploads' . $relative_path;
 			$delete_paths[] = $main_path;
 			
-			error_log('S3 Media Sync: Preparing to delete attachment from S3: ' . $main_path);
+			// error_log('S3 Media Sync: Preparing to delete attachment from S3: ' . $main_path);
 			
 			// If we have metadata and thumbnails, add them to the delete list
 			if (!empty($metadata) && !empty($metadata['file']) && !empty($metadata['sizes'])) {
@@ -278,11 +279,11 @@ class S3_Media_Sync {
 					if (!empty($size_info['file'])) {
 						$thumb_path = 'wp-content/uploads/' . $file_dir . $size_info['file'];
 						$delete_paths[] = $thumb_path;
-						error_log('S3 Media Sync: Adding thumbnail for deletion: ' . $thumb_path);
+						// error_log('S3 Media Sync: Adding thumbnail for deletion: ' . $thumb_path);
 					}
 				}
 			} else {
-				error_log('S3 Media Sync: No thumbnail metadata found for attachment ID ' . $post_id);
+				// error_log('S3 Media Sync: No thumbnail metadata found for attachment ID ' . $post_id);
 			}
 			
 			$bucket = $this->get_s3_bucket();
@@ -315,9 +316,9 @@ class S3_Media_Sync {
 						'Key' => $path
 					]);
 					$delete_objects[] = ['Key' => $path];
-					error_log('S3 Media Sync: Object exists, adding for deletion: ' . $path);
+					// error_log('S3 Media Sync: Object exists, adding for deletion: ' . $path);
 				} catch (\Exception $e) {
-					error_log('S3 Media Sync: Object does not exist or cannot be accessed: ' . $path);
+					// error_log('S3 Media Sync: Object does not exist or cannot be accessed: ' . $path);
 				}
 			}
 			
@@ -343,17 +344,17 @@ class S3_Media_Sync {
 						if (strpos($object_filename, $filename_without_ext) !== false && 
 							!in_array(['Key' => $object_key], $delete_objects)) {
 							$delete_objects[] = ['Key' => $object_key];
-							error_log('S3 Media Sync: Found related object for deletion: ' . $object_key);
+							// error_log('S3 Media Sync: Found related object for deletion: ' . $object_key);
 						}
 					}
 				}
 			} catch (\Exception $e) {
-				error_log('S3 Media Sync: Error listing objects: ' . $e->getMessage());
+				// error_log('S3 Media Sync: Error listing objects: ' . $e->getMessage());
 			}
 			
 			// If nothing to delete, return success
 			if (empty($delete_objects)) {
-				error_log('S3 Media Sync: No objects found to delete');
+				// error_log('S3 Media Sync: No objects found to delete');
 				return true;
 			}
 			
@@ -365,10 +366,10 @@ class S3_Media_Sync {
 				]
 			]);
 			
-			error_log('S3 Media Sync: Successfully deleted ' . count($delete_objects) . ' objects from S3');
+			// error_log('S3 Media Sync: Successfully deleted ' . count($delete_objects) . ' objects from S3');
 			return true;
 		} catch (\Exception $e) {
-			error_log('S3 Media Sync delete error: ' . $e->getMessage());
+			// error_log('S3 Media Sync delete error: ' . $e->getMessage());
 			return false;
 		}
 	}
@@ -388,13 +389,13 @@ class S3_Media_Sync {
 
 		// Skip if the main file path is missing
 		if (empty($metadata['file'])) {
-			error_log('S3 Media Sync: No file path in metadata for attachment ID ' . $attachment_id);
+			// error_log('S3 Media Sync: No file path in metadata for attachment ID ' . $attachment_id);
 			return $metadata;
 		}
 
 		// Verify S3 is properly configured
 		if (!$this->is_s3_configured()) {
-			error_log('S3 Media Sync: S3 is not properly configured, skipping metadata sync');
+			// error_log('S3 Media Sync: S3 is not properly configured, skipping metadata sync');
 			return $metadata;
 		}
 
@@ -412,8 +413,8 @@ class S3_Media_Sync {
 			$sync_thumbnails = isset($this->settings['sync_thumbnails']) && $this->settings['sync_thumbnails'] === true;
 			
 			if (!empty($metadata['sizes']) && is_array($metadata['sizes'])) {
-				error_log('S3 Media Sync: Processing attachment metadata for ID ' . $attachment_id . ' with ' . 
-				    count($metadata['sizes']) . ' sizes. Thumbnail syncing is ' . ($sync_thumbnails ? 'enabled' : 'disabled'));
+				// error_log('S3 Media Sync: Processing attachment metadata for ID ' . $attachment_id . ' with ' . 
+				//     count($metadata['sizes']) . ' sizes. Thumbnail syncing is ' . ($sync_thumbnails ? 'enabled' : 'disabled'));
 			}
 			
 			// Always sync the original file if it exists and wasn't previously uploaded
@@ -421,20 +422,20 @@ class S3_Media_Sync {
 			
 			if (file_exists($original_file_path)) {
 				$original_s3_key = 'wp-content/uploads/' . $metadata['file'];
-				error_log('S3 Media Sync: Processing original file: ' . $original_file_path . ' -> S3:' . $original_s3_key);
+				// error_log('S3 Media Sync: Processing original file: ' . $original_file_path . ' -> S3:' . $original_s3_key);
 				
 				// Try to upload the original file
 				$uploaded = $this->try_stream_wrapper_upload($s3_client, $original_file_path, $original_s3_key);
 				
 				if (!$uploaded) {
-					error_log('S3 Media Sync: Stream wrapper upload failed for original file, trying direct API');
+					// error_log('S3 Media Sync: Stream wrapper upload failed for original file, trying direct API');
 					$uploaded = $this->try_direct_s3_upload($s3_client, $original_file_path, $original_s3_key);
 				}
 				
 				if ($uploaded) {
-					error_log('S3 Media Sync: Successfully uploaded original file to S3');
+					// error_log('S3 Media Sync: Successfully uploaded original file to S3');
 				} else {
-					error_log('S3 Media Sync: Failed to upload original file to S3 after all attempts');
+					// error_log('S3 Media Sync: Failed to upload original file to S3 after all attempts');
 				}
 			}
 			
@@ -451,32 +452,32 @@ class S3_Media_Sync {
 					$size_s3_key = 'wp-content/uploads/' . (empty($file_dir) ? '' : trailingslashit($file_dir)) . $size_info['file'];
 					
 					if (!file_exists($size_file_path)) {
-						error_log("S3 Media Sync: Size file doesn't exist: " . $size_file_path);
+						// error_log("S3 Media Sync: Size file doesn't exist: " . $size_file_path);
 						continue;
 					}
 					
-					error_log('S3 Media Sync: Processing size ' . $size . ': ' . $size_file_path . ' -> S3:' . $size_s3_key);
+					// error_log('S3 Media Sync: Processing size ' . $size . ': ' . $size_file_path . ' -> S3:' . $size_s3_key);
 					
 					// First try using stream wrapper
 					$uploaded = $this->try_stream_wrapper_upload($s3_client, $size_file_path, $size_s3_key);
 					
 					// If stream wrapper failed, try direct API
 					if (!$uploaded) {
-						error_log('S3 Media Sync: Stream wrapper upload failed for size ' . $size . ', trying direct API');
+						// error_log('S3 Media Sync: Stream wrapper upload failed for size ' . $size . ', trying direct API');
 						$uploaded = $this->try_direct_s3_upload($s3_client, $size_file_path, $size_s3_key);
 					}
 					
 					if ($uploaded) {
-						error_log('S3 Media Sync: Successfully uploaded size ' . $size . ' to S3');
+						// error_log('S3 Media Sync: Successfully uploaded size ' . $size . ' to S3');
 					} else {
-						error_log('S3 Media Sync: Failed to upload size ' . $size . ' to S3 after all attempts');
+						// error_log('S3 Media Sync: Failed to upload size ' . $size . ' to S3 after all attempts');
 					}
 				}
 			} else if (!$sync_thumbnails && !empty($metadata['sizes'])) {
-				error_log('S3 Media Sync: Skipping ' . count($metadata['sizes']) . ' thumbnail sizes due to sync_thumbnails setting disabled');
+				// error_log('S3 Media Sync: Skipping ' . count($metadata['sizes']) . ' thumbnail sizes due to sync_thumbnails setting disabled');
 			}
 		} catch (\Exception $e) {
-			error_log('S3 Media Sync metadata sync exception: ' . $e->getMessage());
+			// error_log('S3 Media Sync metadata sync exception: ' . $e->getMessage());
 		}
 		
 		return $metadata;
@@ -504,34 +505,34 @@ class S3_Media_Sync {
 			} catch (\Aws\S3\Exception\S3Exception $e) {
 				$error_message = $e->getMessage();
 				if (strpos($error_message, 'NoSuchBucket') !== false || strpos($error_message, '404 Not Found') !== false) {
-					error_log(sprintf(
-						'S3 Media Sync: Bucket "%s" does not exist in region %s (%s)',
-						$this->bucket->get_name(),
-						$this->bucket->get_region()->get_identifier(),
-						$this->bucket->get_region()->get_display_name()
-					));
+					// error_log(sprintf(
+					// 	'S3 Media Sync: Bucket "%s" does not exist in region %s (%s)',
+					// 	$this->bucket->get_name(),
+					// 	$this->bucket->get_region()->get_identifier(),
+					// 	$this->bucket->get_region()->get_display_name()
+					// ));
 				} elseif (strpos($error_message, 'InvalidAccessKeyId') !== false) {
-					error_log('S3 Media Sync: Invalid AWS credentials');
+					// error_log('S3 Media Sync: Invalid AWS credentials');
 				} elseif (strpos($error_message, 'AccessDenied') !== false) {
-					error_log(sprintf(
-						'S3 Media Sync: Access denied to bucket "%s" in region %s (%s)',
-						$this->bucket->get_name(),
-						$this->bucket->get_region()->get_identifier(),
-						$this->bucket->get_region()->get_display_name()
-					));
+					// error_log(sprintf(
+					// 	'S3 Media Sync: Access denied to bucket "%s" in region %s (%s)',
+					// 	$this->bucket->get_name(),
+					// 	$this->bucket->get_region()->get_identifier(),
+					// 	$this->bucket->get_region()->get_display_name()
+					// ));
 				} else {
-					error_log(sprintf(
-						'S3 Media Sync: Error accessing bucket "%s" in region %s (%s) - %s',
-						$this->bucket->get_name(),
-						$this->bucket->get_region()->get_identifier(),
-						$this->bucket->get_region()->get_display_name(),
-						$error_message
-					));
+					// error_log(sprintf(
+					// 	'S3 Media Sync: Error accessing bucket "%s" in region %s (%s) - %s',
+					// 	$this->bucket->get_name(),
+					// 	$this->bucket->get_region()->get_identifier(),
+					// 	$this->bucket->get_region()->get_display_name(),
+					// 	$error_message
+					// ));
 				}
 				return false;
 			}
 		} catch (\Exception $e) {
-			error_log('S3 Media Sync: Error creating S3 client - ' . $e->getMessage());
+			// error_log('S3 Media Sync: Error creating S3 client - ' . $e->getMessage());
 			return false;
 		}
 	}
@@ -545,7 +546,7 @@ class S3_Media_Sync {
 	 * @return bool Whether the upload succeeded
 	 */
 	protected function try_stream_wrapper_upload($s3_client, $file_path, $relative_path) {
-		error_log('S3 Media Sync: Attempting to upload via stream wrapper: ' . $file_path . ' -> s3://' . $this->bucket->get_name() . '/' . $relative_path);
+		// error_log('S3 Media Sync: Attempting to upload via stream wrapper: ' . $file_path . ' -> s3://' . $this->bucket->get_name() . '/' . $relative_path);
 		
 		// Simple ACL handling
 		$stream_options = [];
@@ -569,7 +570,7 @@ class S3_Media_Sync {
 			if (isset($this->settings['use_acl']) && $this->settings['use_acl'] && 
 				$error && strpos($error['message'], 'AccessControlListNotSupported') !== false) {
 				
-				error_log('S3 Media Sync: AccessControlListNotSupported error detected, retrying without ACL');
+				// error_log('S3 Media Sync: AccessControlListNotSupported error detected, retrying without ACL');
 				
 				// Retry without ACL
 				$stream_options['acl'] = null;
@@ -578,32 +579,32 @@ class S3_Media_Sync {
 				
 				// If successful, update settings
 				if ($result) {
-					error_log('S3 Media Sync: Successfully copied to S3 without ACL');
+					// error_log('S3 Media Sync: Successfully copied to S3 without ACL');
 					$this->settings['use_acl'] = false;
 					update_option('s3_media_sync_settings', $this->settings);
 					return true;
 				} else {
 					$retry_error = error_get_last();
-					error_log('S3 Media Sync: Failed to copy to S3 even without ACL: ' . ($retry_error ? $retry_error['message'] : 'Unknown error'));
+					// error_log('S3 Media Sync: Failed to copy to S3 even without ACL: ' . ($retry_error ? $retry_error['message'] : 'Unknown error'));
 					return false;
 				}
 			} else if ($error) {
-				error_log('S3 Media Sync: Failed to copy to S3 via stream wrapper: ' . $error['message']);
+				// error_log('S3 Media Sync: Failed to copy to S3 via stream wrapper: ' . $error['message']);
 				
 				// Check for specific error types to provide more helpful messages
 				if (strpos($error['message'], 'Error executing "HeadObject"') !== false) {
-					error_log('S3 Media Sync: This may be a permissions issue. Check your IAM policy and bucket settings.');
+					// error_log('S3 Media Sync: This may be a permissions issue. Check your IAM policy and bucket settings.');
 				} elseif (strpos($error['message'], 'InvalidAccessKeyId') !== false) {
-					error_log('S3 Media Sync: Invalid AWS access key. Check your credentials.');
+					// error_log('S3 Media Sync: Invalid AWS access key. Check your credentials.');
 				} elseif (strpos($error['message'], 'AccessDenied') !== false) {
-					error_log('S3 Media Sync: Access denied. Check bucket permissions and IAM policy.');
-					error_log('S3 Media Sync: Ensure your IAM policy allows access to this path: ' . $relative_path);
+					// error_log('S3 Media Sync: Access denied. Check bucket permissions and IAM policy.');
+					// error_log('S3 Media Sync: Ensure your IAM policy allows access to this path: ' . $relative_path);
 				}
 				return false;
 			}
 			return false;
 		} else {
-			error_log('S3 Media Sync: Successfully copied to S3 via stream wrapper');
+			// error_log('S3 Media Sync: Successfully copied to S3 via stream wrapper');
 			return true;
 		}
 	}
@@ -617,18 +618,18 @@ class S3_Media_Sync {
 	 * @return bool Whether the upload succeeded
 	 */
 	protected function try_direct_s3_upload($s3_client, $file_path, $relative_path) {
-		error_log('S3 Media Sync: Attempting to upload via direct API: ' . $file_path . ' -> ' . $this->bucket->get_name() . '/' . $relative_path);
+		// error_log('S3 Media Sync: Attempting to upload via direct API: ' . $file_path . ' -> ' . $this->bucket->get_name() . '/' . $relative_path);
 		
 		// Log the IAM policy path pattern for debugging
 		if (strpos($relative_path, 'wp-content/uploads/') !== 0) {
-			error_log('S3 Media Sync: WARNING - The S3 path does not begin with "wp-content/uploads/" which is required by the IAM policy');
+			// error_log('S3 Media Sync: WARNING - The S3 path does not begin with "wp-content/uploads/" which is required by the IAM policy');
 		}
 		
 		try {
 			// Read file contents
 			$body = fopen($file_path, 'r');
 			if (!$body) {
-				error_log('S3 Media Sync: Could not open file for reading: ' . $file_path);
+				// error_log('S3 Media Sync: Could not open file for reading: ' . $file_path);
 				return false;
 			}
 			
@@ -648,7 +649,7 @@ class S3_Media_Sync {
 				$params['ACL'] = isset($this->settings['object_acl']) ? $this->settings['object_acl'] : 'public-read';
 			}
 			
-			error_log('S3 Media Sync: PutObject params - Bucket: ' . $params['Bucket'] . ', Key: ' . $params['Key'] . ', ContentType: ' . $params['ContentType']);
+			// error_log('S3 Media Sync: PutObject params - Bucket: ' . $params['Bucket'] . ', Key: ' . $params['Key'] . ', ContentType: ' . $params['ContentType']);
 			
 			// Upload using putObject
 			$result = $s3_client->putObject($params);
@@ -658,7 +659,7 @@ class S3_Media_Sync {
 				fclose($body);
 			}
 			
-			error_log('S3 Media Sync: Successfully uploaded to S3 via direct API');
+			// error_log('S3 Media Sync: Successfully uploaded to S3 via direct API');
 			
 			// Verify the file exists
 			try {
@@ -666,24 +667,24 @@ class S3_Media_Sync {
 					'Bucket' => $this->bucket->get_name(),
 					'Key' => $relative_path,
 				]);
-				error_log('S3 Media Sync: Successfully verified file exists on S3 after direct upload');
+				// error_log('S3 Media Sync: Successfully verified file exists on S3 after direct upload');
 			} catch (\Exception $e) {
-				error_log('S3 Media Sync: Warning - File uploaded but verification failed: ' . $e->getMessage());
+				// error_log('S3 Media Sync: Warning - File uploaded but verification failed: ' . $e->getMessage());
 			}
 			
 			return true;
 		} catch (\Aws\S3\Exception\S3Exception $e) {
-			error_log('S3 Media Sync: Direct API upload failed: ' . $e->getMessage());
+			// error_log('S3 Media Sync: Direct API upload failed: ' . $e->getMessage());
 			
 			// Additional debug info for permissions errors
 			if (strpos($e->getMessage(), 'AccessDenied') !== false) {
-				error_log('S3 Media Sync: Access denied error: Your IAM policy requires paths to start with "wp-content/uploads/"');
-				error_log('S3 Media Sync: Attempted path: ' . $relative_path);
+				// error_log('S3 Media Sync: Access denied error: Your IAM policy requires paths to start with "wp-content/uploads/"');
+				// error_log('S3 Media Sync: Attempted path: ' . $relative_path);
 			}
 			
 			// Handle AccessControlListNotSupported error
 			if (strpos($e->getMessage(), 'AccessControlListNotSupported') !== false) {
-				error_log('S3 Media Sync: AccessControlListNotSupported error detected, retrying without ACL');
+				// error_log('S3 Media Sync: AccessControlListNotSupported error detected, retrying without ACL');
 				
 				// Remove ACL and retry
 				if (isset($this->settings['use_acl']) && $this->settings['use_acl']) {
@@ -696,7 +697,7 @@ class S3_Media_Sync {
 			}
 			return false;
 		} catch (\Exception $e) {
-			error_log('S3 Media Sync: Direct API upload failed with general exception: ' . $e->getMessage());
+			// error_log('S3 Media Sync: Direct API upload failed with general exception: ' . $e->getMessage());
 			return false;
 		}
 	}

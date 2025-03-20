@@ -137,6 +137,7 @@ class ErrorHandlingTest extends TestCase {
 		ini_set('error_log', $error_log_file);
 		
 		// Add some log entries that would be expected during stream wrapper configuration issues
+		// Integration tests rely on this logging to pass.
 		error_log("S3 Media Sync: Stream wrapper test failed: {$error_message}");
 		error_log("S3 Media Sync: Direct API bucket access failed: [{$error_code}] {$error_message}");
 		

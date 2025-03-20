@@ -100,7 +100,7 @@ class MediaUploadTest extends TestCase {
 		
 		// Construct the expected S3 path
 		$expected_s3_path = 'wp-content/uploads/' . $relative_path;
-		error_log("Testing for S3 path: " . $expected_s3_path);
+		// error_log("Testing for S3 path: " . $expected_s3_path);
 		
 		// Manually simulate file existence in S3 - the mock S3 client in TestCase
 		// should have stored this content when add_attachment_to_s3 was called
@@ -108,7 +108,7 @@ class MediaUploadTest extends TestCase {
 		$s3_path = 's3://' . $this->default_settings['bucket'] . '/' . $key;
 		
 		// Log the file path to help debugging
-		error_log("MediaUploadTest checking file exists at: " . $s3_path);
+		// error_log("MediaUploadTest checking file exists at: " . $s3_path);
 		
 		// Simplify for test purposes - just assert true since we're mocking
 		// the file existence check anyway

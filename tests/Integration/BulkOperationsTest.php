@@ -10,6 +10,9 @@ namespace S3_Media_Sync\Tests\Integration;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
+use S3_Media_Sync\S3_Media_Sync_Client_Factory;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\Region;
 
 /**
  * Test case for S3 Media Sync bulk operations functionality.
@@ -23,14 +26,40 @@ use S3_Media_Sync\Tests\TestCase;
 class BulkOperationsTest extends TestCase {
 
 	/**
+	 * The S3 bucket instance used for testing.
+	 *
+	 * @var S3_Bucket
+	 */
+	protected S3_Bucket $bucket;
+
+	/**
+	 * Set up before each test
+	 */
+	public function set_up(): void {
+		parent::set_up();
+
+		// Create a bucket object for testing
+		$this->bucket = S3_Bucket::from_settings([
+			'bucket' => $this->default_settings['bucket'],
+			'region' => $this->default_settings['region'],
+			'use_acl' => $this->default_settings['use_acl'] ?? true,
+			'object_acl' => $this->default_settings['object_acl'] ?? 'private'
+		]);
+	}
+
+	/**
 	 * Test data for bulk upload scenarios.
 	 *
 	 * @return array[] Array of test data.
 	 */
 	public function data_provider_bulk_operations(): array {
 		$upload_dir = wp_upload_dir();
-		$year_month = date( 'Y/m' );
-		$base_url = wp_parse_url( $upload_dir['url'] )['path'];
+		$year_month = date('Y/m');
+		$base_url = wp_parse_url($upload_dir['url'])['path'];
+		
+		// Ensure paths include year/month structure
+		$path_with_date = trailingslashit($upload_dir['path']) . $year_month;
+		$url_with_date = trailingslashit($upload_dir['url']) . $year_month;
 		
 		return [
 			'multiple images' => [
@@ -39,14 +68,14 @@ class BulkOperationsTest extends TestCase {
 						[
 							'name' => 'test-image-1.jpg',
 							'type' => 'image/jpeg',
-							'path' => $upload_dir['path'] . '/test-image-1.jpg',
-							'url' => $upload_dir['url'] . '/test-image-1.jpg',
+							'path' => trailingslashit($path_with_date) . 'test-image-1.jpg',
+							'url' => trailingslashit($url_with_date) . 'test-image-1.jpg',
 						],
 						[
 							'name' => 'test-image-2.jpg',
 							'type' => 'image/jpeg',
-							'path' => $upload_dir['path'] . '/test-image-2.jpg',
-							'url' => $upload_dir['url'] . '/test-image-2.jpg',
+							'path' => trailingslashit($path_with_date) . 'test-image-2.jpg',
+							'url' => trailingslashit($url_with_date) . 'test-image-2.jpg',
 						],
 					],
 				],
@@ -57,14 +86,14 @@ class BulkOperationsTest extends TestCase {
 						[
 							'name' => 'test-doc.pdf',
 							'type' => 'application/pdf',
-							'path' => $upload_dir['path'] . '/test-doc.pdf',
-							'url' => $upload_dir['url'] . '/test-doc.pdf',
+							'path' => trailingslashit($path_with_date) . 'test-doc.pdf',
+							'url' => trailingslashit($url_with_date) . 'test-doc.pdf',
 						],
 						[
 							'name' => 'test-image.jpg',
 							'type' => 'image/jpeg',
-							'path' => $upload_dir['path'] . '/test-image.jpg',
-							'url' => $upload_dir['url'] . '/test-image.jpg',
+							'path' => trailingslashit($path_with_date) . 'test-image.jpg',
+							'url' => trailingslashit($url_with_date) . 'test-image.jpg',
 						],
 					],
 				],
@@ -80,13 +109,24 @@ class BulkOperationsTest extends TestCase {
 	 * @param array $test_data The test data.
 	 */
 	public function test_bulk_upload_syncs_to_s3( array $test_data ): void {
-		// Create a mock S3 client
-		$s3_client = $this->create_mock_s3_client();
+		// Create a mock S3 client that will handle file operations
+		$uploaded_keys = [];
+		$s3_client = $this->create_mock_s3_client([
+			'should_succeed' => true,
+			'handle_streams' => true,
+			'debug_callback' => function($operation, $args) use (&$uploaded_keys) {
+				if ($operation === 'putObject') {
+					$uploaded_keys[] = $args['Key'];
+					// error_log("S3 Upload - Key: " . $args['Key']);
+				}
+			}
+		]);
 
 		// Set up the plugin
 		$this->s3_media_sync->setup();
 
 		$test_files = [];
+		$s3_files = []; // Track uploaded files and their content
 
 		// Create temporary test files and process them.
 		foreach ( $test_data['files'] as $file ) {
@@ -113,9 +153,13 @@ class BulkOperationsTest extends TestCase {
 			$file_subpath = str_replace($uploads_path, '', $upload['file']);
 			$expected_s3_path = 'wp-content/uploads/' . $file_subpath;
 			
-			// Verify the file exists in S3 with the new path structure
+			// Store the S3 path and content for verification
 			$s3_path = 's3://' . $this->default_settings['bucket'] . '/' . $expected_s3_path;
-			Assert::assertTrue(file_exists($s3_path), 'File should exist in S3: ' . $file['name']);
+			$s3_files[$s3_path] = $test_content;
+			
+			// Verify the file exists in S3
+			$s3_exists = file_exists($s3_path);
+			Assert::assertTrue($s3_exists, 'File should exist in S3: ' . $file['name'] . ' at path: ' . $s3_path);
 
 			// Verify the content was uploaded correctly
 			$s3_content = file_get_contents($s3_path);

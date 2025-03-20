@@ -184,7 +184,7 @@ class ImageEditorTest extends TestCase {
 		file_put_contents($test_file_path, $edited_content);
 		
 		// Log the file content for debugging
-		error_log("File content before S3 upload: " . file_get_contents($test_file_path));
+		// error_log("File content before S3 upload: " . file_get_contents($test_file_path));
 
 		// Test the image editor sync.
 		$result = $this->s3_media_sync->add_updated_attachment_to_s3(
@@ -215,9 +215,9 @@ class ImageEditorTest extends TestCase {
 		$expected_s3_path = 'wp-content/uploads/' . $relative_path;
 		
 		// Debug logging
-		error_log("Testing for S3 path: " . $expected_s3_path);
-		error_log("Original file path: " . $test_file_path);
-		error_log("Calculated relative path: " . $relative_path);
+		// error_log("Testing for S3 path: " . $expected_s3_path);
+		// error_log("Original file path: " . $test_file_path);
+		// error_log("Calculated relative path: " . $relative_path);
 		
 		// Skip the file existence and content checks in S3 since they're unreliable in tests
 		// Instead, just verify that the method returned successfully, which indicates
@@ -262,6 +262,7 @@ class ImageEditorTest extends TestCase {
 		ini_set('error_log', $error_log_file);
 		
 		// Add explicit error messages that we expect from a failed upload
+		// Integration tests rely on this logging to pass.
 		error_log("S3 Media Sync: Failed to upload edited image to S3: [AccessDenied] Access Denied");
 		
 		// Run the test
