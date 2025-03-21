@@ -6,12 +6,20 @@ use S3_Media_Sync\Tests\TestCase;
 use S3_Media_Sync_Settings;
 
 /**
- * Integration tests for UI rendering in S3 Media Sync.
+ * Integration tests for UserInterface class
  *
  * @package S3_Media_Sync
+ */
+
+/**
+ * Test case for UserInterface class.
+ *
  * @group integration
+ * @group user-interface
+ * @covers \S3_Media_Sync
  * @covers \S3_Media_Sync_Settings
- * @uses \S3_Media_Sync
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
  */
 class UserInterfaceTest extends TestCase {
 

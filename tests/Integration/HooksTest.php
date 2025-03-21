@@ -18,6 +18,10 @@ use S3_Media_Sync\Tests\TestCase;
  * @covers \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
  * @uses \S3_Media_Sync_Settings
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Bucket_Exception
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Region_Exception
  */
 class HooksTest extends TestCase {
 

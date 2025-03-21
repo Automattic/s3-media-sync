@@ -10,18 +10,25 @@ namespace S3_Media_Sync\Tests\Integration;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
-use S3_Media_Sync\S3_Media_Sync_Client_Factory;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
-use S3_Media_Sync\Value_Objects\Region;
 
 /**
  * Test case for S3 Media Sync bulk operations functionality.
  *
  * @group integration
  * @group bulk-operations
- * @covers \S3_Media_Sync
+ * @covers \S3_Media_Sync\S3_Media_Sync_Client_Factory
+ * @uses \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
  * @uses \S3_Media_Sync_Settings
+ * @uses \S3_Media_Sync\Value_Objects\Local_File
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
+ * @uses \S3_Media_Sync\Value_Objects\S3_File
+ * @uses \S3_Media_Sync\Value_Objects\WordPress_Attachment
+ * @uses \S3_Media_Sync\Exceptions\Invalid_File_Exception
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Bucket_Exception
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Region_Exception
  */
 class BulkOperationsTest extends TestCase {
 

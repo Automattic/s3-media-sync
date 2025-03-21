@@ -20,6 +20,10 @@ use S3_Media_Sync\Value_Objects\S3_Bucket;
  * @covers \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
  * @uses \S3_Media_Sync_Settings
+ * @uses \S3_Media_Sync\Value_Objects\Local_File
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
+ * @uses \S3_Media_Sync\Value_Objects\S3_File
  */
 class MediaUploadTest extends TestCase {
 

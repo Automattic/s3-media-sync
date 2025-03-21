@@ -1,32 +1,29 @@
 <?php
 /**
- * Integration tests for S3 Media Sync client factory
+ * Integration tests for Client Factory class
  *
  * @package S3_Media_Sync
  */
 
 namespace S3_Media_Sync\Tests\Integration;
 
-use Aws\S3\S3Client;
 use Aws\S3\S3ClientInterface;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
-use S3_Media_Sync\Value_Objects\Region;
 use S3_Media_Sync\S3_Media_Sync_Client_Factory;
-use S3_Media_Sync_Stream_Wrapper;
 use S3_Media_Sync;
-use S3_Media_Sync_Settings;
 
 /**
- * Test case for S3 Media Sync client factory functionality.
+ * Test case for Client Factory class.
  *
  * @group integration
  * @group client-factory
- * @covers \S3_Media_Sync_Client_Factory
- * @uses \S3_Media_Sync_Stream_Wrapper
+ * @covers \S3_Media_Sync\S3_Media_Sync_Client_Factory
  * @uses \S3_Media_Sync
  * @uses \S3_Media_Sync_Settings
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
  */
 class ClientFactoryTest extends TestCase {
 

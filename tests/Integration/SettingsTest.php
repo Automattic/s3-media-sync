@@ -7,13 +7,9 @@
 
 namespace S3_Media_Sync\Tests\Integration;
 
-use Aws\S3\S3Client;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
-use S3_Media_Sync;
-use S3_Media_Sync_Settings;
-use S3_Media_Sync_Client_Factory;
 
 /**
  * Test case for S3 Media Sync settings functionality.
@@ -23,7 +19,8 @@ use S3_Media_Sync_Client_Factory;
  * @covers \S3_Media_Sync_Settings
  * @uses \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
- * @uses \S3_Media_Sync_Client_Factory
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
  */
 class SettingsTest extends TestCase {
 

@@ -12,9 +12,7 @@ use PHPUnit\Framework\Assert;
 use S3_Media_Sync;
 use S3_Media_Sync_Settings;
 use S3_Media_Sync\Tests\TestCase;
-use WP_Image_Editor;
 use S3_Media_Sync\Value_Objects\Local_File;
-use S3_Media_Sync\Value_Objects\S3_File;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
 use S3_Media_Sync\Value_Objects\File_Comparison;
 use S3_Media_Sync\Value_Objects\WordPress_Attachment;
@@ -27,6 +25,15 @@ use S3_Media_Sync\Value_Objects\WordPress_Attachment;
  * @covers \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
  * @uses \S3_Media_Sync_Settings
+ * @uses \S3_Media_Sync\Value_Objects\File_Comparison
+ * @uses \S3_Media_Sync\Value_Objects\Local_File
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
+ * @uses \S3_Media_Sync\Value_Objects\S3_File
+ * @uses \S3_Media_Sync\Value_Objects\WordPress_Attachment
+ * @uses \S3_Media_Sync\Exceptions\Invalid_File_Exception
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Bucket_Exception
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Region_Exception
  */
 class ImageEditorTest extends TestCase {
 	protected S3_Media_Sync $s3_media_sync;

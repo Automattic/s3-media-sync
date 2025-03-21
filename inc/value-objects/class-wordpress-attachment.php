@@ -43,11 +43,27 @@ class WordPress_Attachment {
 
     /**
      * Create an attachment from a WordPress post ID
+     * 
+     * @throws \InvalidArgumentException If the post does not exist or is not an attachment
      */
     public static function from_post_id(int $post_id): self {
+        // Check if post exists and is an attachment
+        $post = get_post($post_id);
+        if (!$post) {
+            throw new \InvalidArgumentException('Post not found: ' . $post_id);
+        }
+        if ($post->post_type !== 'attachment') {
+            throw new \InvalidArgumentException('Post is not an attachment: ' . $post_id);
+        }
+
         $upload_dir = wp_upload_dir();
         $file_path = get_attached_file($post_id);
         $metadata = wp_get_attachment_metadata($post_id);
+
+        // Validate file path
+        if (!$file_path || !file_exists($file_path)) {
+            throw new \InvalidArgumentException('Attachment file not found: ' . $file_path);
+        }
 
         // Create the main file object
         $main_file = Local_File::from_path($file_path);
@@ -61,12 +77,14 @@ class WordPress_Attachment {
                     $info['file'],
                     $file_path
                 );
-                $thumbnails[$size] = Local_File::from_metadata(
-                    path: $thumb_path,
-                    mime_type: $info['mime-type'],
-                    size: isset($info['filesize']) ? (int) $info['filesize'] : null,
-                    md5_hash: null
-                );
+                if (file_exists($thumb_path)) {
+                    $thumbnails[$size] = Local_File::from_metadata(
+                        path: $thumb_path,
+                        mime_type: $info['mime-type'],
+                        size: isset($info['filesize']) ? (int) $info['filesize'] : null,
+                        md5_hash: null
+                    );
+                }
             }
         }
 
@@ -74,7 +92,7 @@ class WordPress_Attachment {
             id: $post_id,
             file: $main_file,
             thumbnails: $thumbnails,
-            metadata: $metadata
+            metadata: $metadata ?: []
         );
     }
 

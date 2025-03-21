@@ -7,24 +7,23 @@
 
 namespace S3_Media_Sync\Tests\Integration;
 
-use Aws\Result;
-use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
-use GuzzleHttp\Promise;
-use GuzzleHttp\Psr7\Utils;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync_Stream_Wrapper;
 
 /**
  * Test case for S3 Media Sync stream wrapper functionality.
  *
  * @group integration
  * @group stream-wrapper
+ * @covers \S3_Media_Sync
  * @covers \S3_Media_Sync_Stream_Wrapper
- * @uses \S3_Media_Sync
  * @uses \S3_Media_Sync_Settings
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
  */
 class StreamWrapperTest extends TestCase {
 

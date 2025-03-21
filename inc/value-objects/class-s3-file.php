@@ -2,6 +2,8 @@
 
 namespace S3_Media_Sync\Value_Objects;
 
+use S3_Media_Sync\Exceptions\Invalid_File_Exception;
+
 /**
  * Value object representing a file stored in S3.
  */
@@ -41,6 +43,10 @@ class S3_File {
         ?int $size = null,
         ?string $content_type = null
     ) {
+        if (empty($key)) {
+            throw new Invalid_File_Exception('S3 key cannot be empty');
+        }
+
         $this->bucket = $bucket;
         $this->key = $this->normalize_key($key);
         $this->etag = $etag;
