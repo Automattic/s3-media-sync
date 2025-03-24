@@ -1,21 +1,20 @@
 {
 	"name": "wpcomvip/s3-media-sync",
+	"license": "GPL-2.0-or-later",
 	"type": "wordpress-plugin",
+	"support": {
+		"issues": "https://github.com/Automattic/s3-media-sync/issues",
+		"source": "https://github.com/Automattic/s3-media-sync"
+	},
 	"require": {
 		"php": "^8.1",
-		"composer/installers": "~1.0 || ^2.0",
-		"aws/aws-sdk-php": "~3.288.1"
-	},
-	"config": {
-		"allow-plugins": {
-			"composer/installers": true,
-			"dealerdirect/phpcodesniffer-composer-installer": true
-		}
+		"aws/aws-sdk-php": "~3.288.1",
+		"composer/installers": "^1.0 || ^2.0"
 	},
 	"require-dev": {
+		"mockery/mockery": "^1.6",
 		"phpunit/phpunit": "^9.6",
-		"yoast/wp-test-utils": "^1.2",
-		"mockery/mockery": "^1.6"
+		"yoast/wp-test-utils": "^1.2"
 	},
 	"autoload": {
 		"classmap": [
@@ -30,7 +29,17 @@
 			"S3_Media_Sync\\Tests\\": "tests/"
 		}
 	},
+	"config": {
+		"allow-plugins": {
+			"composer/installers": true,
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	},
 	"scripts": {
+		"coverage": [
+			"@putenv XDEBUG_MODE=coverage",
+			"./vendor/bin/phpunit --testsuite integration --coverage-text --coverage-html build/coverage"
+		],
 		"prepare-ci": [
 			"bash bin/install-wp-tests.sh wordpress_test root root localhost"
 		],
@@ -41,19 +50,11 @@
 		"test-ms": [
 			"@putenv WP_MULTISITE=1",
 			"@composer test"
-		],
-		"coverage": [
-			"@putenv XDEBUG_MODE=coverage",
-			"./vendor/bin/phpunit --testsuite integration --coverage-text --coverage-html build/coverage"
 		]
 	},
 	"scripts-descriptions": {
-		"test-integration": "Run integration tests with code coverage for the S3 Media Sync plugin, and send results to stdout.",
+		"coverage": "Run tests with code coverage reporting",
 		"test": "Run all tests for the S3 Media Sync plugin.",
-		"coverage": "Run tests with code coverage reporting"
-	},
-	"support": {
-		"issues": "https://github.com/Automattic/s3-media-sync/issues",
-		"source": "https://github.com/Automattic/s3-media-sync"
+		"test-integration": "Run integration tests with code coverage for the S3 Media Sync plugin, and send results to stdout."
 	}
 }
