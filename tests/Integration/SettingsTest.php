@@ -7,13 +7,9 @@
 
 namespace S3_Media_Sync\Tests\Integration;
 
-use Aws\S3\S3Client;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use S3_Media_Sync\Tests\TestCase;
-use S3_Media_Sync;
-use S3_Media_Sync_Settings;
-use S3_Media_Sync_Client_Factory;
 
 /**
  * Test case for S3 Media Sync settings functionality.
@@ -23,7 +19,8 @@ use S3_Media_Sync_Client_Factory;
  * @covers \S3_Media_Sync_Settings
  * @uses \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
- * @uses \S3_Media_Sync_Client_Factory
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
  */
 class SettingsTest extends TestCase {
 
@@ -52,6 +49,7 @@ class SettingsTest extends TestCase {
 					'key'        => 'test-key',
 					'secret'     => 'test-secret',
 					'region'     => 'test-region',
+					'use_acl'    => true,
 					'object_acl' => 'public-read',
 				],
 				's3-media-sync-settings-error',
@@ -63,6 +61,7 @@ class SettingsTest extends TestCase {
 					'key'        => '',
 					'secret'     => '',
 					'region'     => '',
+					'use_acl'    => true,
 					'object_acl' => 'public-read',
 				],
 				's3-media-sync-settings-error',
@@ -146,6 +145,24 @@ class SettingsTest extends TestCase {
 		$saved_settings = $this->settings_handler->get_settings();
 
 		Assert::assertSame( $settings, $saved_settings );
+	}
+
+	/**
+	 * Test get settings.
+	 */
+	public function test_get_settings(): void {
+		$settings = [
+			'bucket'     => 'test-bucket',
+			'key'       => 'test-key',
+			'secret'    => 'test-secret',
+			'region'    => 'us-east-1',
+			'use_acl'   => true,
+			'object_acl' => 'public-read',
+		];
+
+		update_option('s3_media_sync_settings', $settings);
+
+		Assert::assertSame($settings, $this->settings_handler->get_settings());
 	}
 
 	/**

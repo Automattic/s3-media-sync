@@ -19,6 +19,13 @@ use S3_Media_Sync\Tests\TestCase;
  * @covers \S3_Media_Sync
  * @uses \S3_Media_Sync_Stream_Wrapper
  * @uses \S3_Media_Sync_Settings
+ * @uses \S3_Media_Sync\Value_Objects\Local_File
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
+ * @uses \S3_Media_Sync\Value_Objects\S3_File
+ * @uses \S3_Media_Sync\Exceptions\Invalid_File_Exception
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Bucket_Exception
+ * @uses \S3_Media_Sync\Exceptions\Invalid_Region_Exception
  */
 class FileDeleteTest extends TestCase {
 
@@ -177,6 +184,7 @@ class FileDeleteTest extends TestCase {
 		ini_set('error_log', $error_log_file);
 		
 		// Add explicit error messages that we expect to see from a failed deletion
+		// Integration tests rely on this logging to pass.
 		error_log("S3 Media Sync: S3 bucket check failed: [AccessDenied] Access Denied");
 		error_log("S3 Media Sync delete error: Failed to delete objects from S3 bucket: {$test_data['bucket']}");
 		

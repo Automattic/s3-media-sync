@@ -1,5 +1,9 @@
 <?php
 
+use S3_Media_Sync\S3_Media_Sync_Client_Factory;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\Region;
+
 class S3_Media_Sync_Settings {
 	/**
 	 * Plugin settings
@@ -9,7 +13,25 @@ class S3_Media_Sync_Settings {
 	protected $settings;
 
 	public function __construct() {
-		$this->settings = get_option( 's3_media_sync_settings', [] );
+		$this->settings = get_option('s3_media_sync_settings', []);
+
+		// Sanitize any invalid region in the settings
+		if (!empty($this->settings['region'])) {
+			try {
+				// Attempt to validate the region
+				$region = Region::from_string($this->settings['region']);
+				// Update with normalized value
+				$this->settings['region'] = $region->get_identifier();
+			} catch (\S3_Media_Sync\Exceptions\Invalid_Region_Exception $e) {
+				// If region is invalid, remove it from settings
+				// error_log(sprintf(
+				// 	'S3 Media Sync: Removed invalid region "%s" from settings',
+				// 	$this->settings['region']
+				// ));
+				unset($this->settings['region']);
+				update_option('s3_media_sync_settings', $this->settings);
+			}
+		}
 	}
 
 	/**
@@ -86,19 +108,82 @@ class S3_Media_Sync_Settings {
 		$factory = new S3_Media_Sync_Client_Factory();
 
 		try {
+			// Validate region first
+			try {
+				$region = Region::from_string($input['region']);
+				// Update the region with the normalized value
+				$input['region'] = $region->get_identifier();
+			} catch (\S3_Media_Sync\Exceptions\Invalid_Region_Exception $e) {
+				// Get the list of valid regions with their display names
+				$valid_regions_list = array_map(function($region_id) {
+					$region = Region::from_string($region_id);
+					return sprintf('%s (%s)', $region_id, $region->get_display_name());
+				}, Region::get_valid_regions());
+
+				add_settings_error(
+					's3_media_sync_settings',
+					's3-media-sync-settings-error',
+					sprintf(
+						__('Invalid region: %s. Please select a valid region from the dropdown.', 's3-media-sync'),
+						esc_html($input['region'])
+					)
+				);
+				return $this->settings; // Return old settings
+			}
+
+			// Create an S3_Bucket object to validate the bucket configuration
+			try {
+				$bucket = S3_Bucket::from_settings($input);
+			} catch (\S3_Media_Sync\Exceptions\Invalid_Bucket_Exception $e) {
+				// Get the error message and check for specific error types
+				$error_msg = $e->getMessage();
+				$friendly_message = '';
+
+				if (strpos($error_msg, 'NoSuchBucket') !== false || strpos($error_msg, '404 Not Found') !== false) {
+					$friendly_message = sprintf(
+						__('Bucket "%s" does not exist in region %s. Please verify the bucket name and region, then use the Test S3 Access button.', 's3-media-sync'),
+						$input['bucket'],
+						$region->get_display_name()
+					);
+				} elseif (strpos($error_msg, 'InvalidAccessKeyId') !== false) {
+					$friendly_message = __('Invalid AWS credentials. Please check your access key and secret key, then use the Test S3 Access button.', 's3-media-sync');
+				} elseif (strpos($error_msg, 'AccessDenied') !== false) {
+					$friendly_message = sprintf(
+						__('Access denied to bucket: %s. Please check your IAM permissions, then use the Test S3 Access button.', 's3-media-sync'),
+						$input['bucket']
+					);
+				} else {
+					$friendly_message = sprintf(
+						__('Could not access bucket: %s. Please use the Test S3 Access button for detailed information.', 's3-media-sync'),
+						$input['bucket']
+					);
+				}
+
+				// Log the full error for debugging
+				// error_log('S3 Media Sync: Bucket validation failed - ' . $error_msg);
+
+				// Show only the friendly message to the user
+				add_settings_error(
+					's3_media_sync_settings',
+					's3-media-sync-settings-error',
+					$friendly_message
+				);
+				return $this->settings; // Return old settings
+			}
+
 			// Attempt to create a client - this will throw an exception if credentials are invalid
-			$s3_client = $factory->create($this->settings);
+			$s3_client = $factory->create($input);
 
 			// If we get here, the client was created successfully
 			// Attempt to get AWS account info for debugging
 			try {
 				$debug_info[] = "- Checking AWS account info";
 				$sts_client = new \Aws\Sts\StsClient([
-					'region' => $this->settings['region'],
+					'region' => $input['region'],
 					'version' => 'latest',
 					'credentials' => [
-						'key' => $this->settings['key'],
-						'secret' => $this->settings['secret']
+						'key' => $input['key'],
+						'secret' => $input['secret']
 					]
 				]);
 				$identity = $sts_client->getCallerIdentity();
@@ -108,17 +193,12 @@ class S3_Media_Sync_Settings {
 				$debug_info[] = "- Unable to get AWS account info: " . $sts_e->getMessage();
 			}
 			
-			// Extract the actual bucket name if there's a path prefix
-			$bucket_parts = explode('/', $this->settings['bucket']);
-			$bucket_name = $bucket_parts[0];
-			$prefix = count($bucket_parts) > 1 ? implode('/', array_slice($bucket_parts, 1)) : '';
-			
 			// Check if the bucket allows ACLs
-			if ($this->settings['use_acl']) {
+			if ($input['use_acl']) {
 				try {
-					$acl_allowed = $factory->does_bucket_allow_acl($s3_client, $bucket_name);
+					$acl_allowed = $factory->does_bucket_allow_acl($s3_client, $bucket->get_name());
 					if (!$acl_allowed) {
-						$this->settings['use_acl'] = false;
+						$input['use_acl'] = false;
 						add_settings_error(
 							's3_media_sync_settings',
 							's3-media-sync-settings-warning',
@@ -141,93 +221,73 @@ class S3_Media_Sync_Settings {
 							's3:ListBucket',
 							's3:GetBucketLocation'
 						],
-						'Resource' => sprintf('arn:aws:s3:::%s', $bucket_name)
+						'Resource' => sprintf('arn:aws:s3:::%s', $bucket->get_name())
 					],
 					[
 						'Effect' => 'Allow',
 						'Action' => [
 							's3:PutObject',
 							's3:GetObject',
-							's3:DeleteObject',
-							// Only include PutObjectAcl if ACLs are enabled
-							$this->settings['use_acl'] ? 's3:PutObjectAcl' : null,
+							's3:DeleteObject'
 						],
-						'Resource' => sprintf(
-							'arn:aws:s3:::%s%s%s',
-							$bucket_name,
-							// Fix for double slash - only add slash if prefix exists
-							(!empty($prefix) ? '/' . rtrim($prefix, '/') : ''),
-							'/wp-content/uploads/*'
-						)
+						'Resource' => sprintf('arn:aws:s3:::%s/*', $bucket->get_name())
 					]
 				]
 			];
-			
-			// Remove null values from the policy
-			$policy_example['Statement'][1]['Action'] = array_filter($policy_example['Statement'][1]['Action']);
-			
-			$policy_json = json_encode($policy_example, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-			
-			add_settings_error(
-				's3_media_sync_settings',
-				's3-media-sync-settings-info',
-				sprintf(
-					__('Settings saved. The AWS credentials will need the following permissions to sync media:%s', 's3-media-sync'),
-					"\n<pre>" . esc_html($policy_json) . "</pre>"
-				),
-				'info'  // Show as informational message
-			);
-			
-			return $input;
-		} catch (\Aws\Exception\CredentialsException $e) {
-			// Handle invalid credentials specifically
-			add_settings_error(
-				's3_media_sync_settings',
-				's3-media-sync-settings-error',
-				__('Invalid AWS credentials. Please verify your Access Key ID and Secret Access Key.', 's3-media-sync')
-			);
-			return $this->settings;
-		} catch (\Aws\S3\Exception\S3Exception $e) {
-			// Handle AWS-specific errors
-			$error_code = $e->getAwsErrorCode() ?: $e->getStatusCode();
-			$error_message = $e->getAwsErrorMessage() ?: $e->getMessage();
-			
-			// Handle credential-related errors specifically
-			if (in_array($error_code, ['InvalidAccessKeyId', 'SignatureDoesNotMatch'])) {
+
+			// Configure the stream wrapper to test bucket access
+			$factory->configure_stream_wrapper($s3_client, $bucket);
+
+			// Test bucket access
+			try {
+				$s3_client->headBucket([
+					'Bucket' => $bucket->get_name()
+				]);
+			} catch (\Exception $e) {
+				// Log the full error for debugging
+				// error_log('S3 Media Sync: Bucket access test failed - ' . $e->getMessage());
+
+				// Determine user-friendly message based on error type
+				$error_msg = $e->getMessage();
+				if (strpos($error_msg, 'NoSuchBucket') !== false || strpos($error_msg, '404 Not Found') !== false) {
+					$friendly_message = sprintf(
+						__('Bucket "%s" does not exist or is in a different region. Please verify the bucket name and region, then use the Test S3 Access button.', 's3-media-sync'),
+						$bucket->get_name()
+					);
+				} elseif (strpos($error_msg, 'InvalidAccessKeyId') !== false) {
+					$friendly_message = __('Invalid AWS credentials. Please check your access key and secret key, then use the Test S3 Access button.', 's3-media-sync');
+				} elseif (strpos($error_msg, 'AccessDenied') !== false) {
+					$friendly_message = sprintf(
+						__('Access denied to bucket: %s. Please check your IAM permissions, then use the Test S3 Access button.', 's3-media-sync'),
+						$bucket->get_name()
+					);
+				} else {
+					$friendly_message = sprintf(
+						__('Could not access bucket: %s. Please use the Test S3 Access button for detailed information.', 's3-media-sync'),
+						$bucket->get_name()
+					);
+				}
+
 				add_settings_error(
 					's3_media_sync_settings',
 					's3-media-sync-settings-error',
-					__('Invalid AWS credentials. Please verify your Access Key ID and Secret Access Key.', 's3-media-sync')
+					$friendly_message
 				);
-				return $this->settings;
+				return $this->settings; // Return old settings
 			}
-			
-			add_settings_error(
-				's3_media_sync_settings',
-				's3-media-sync-settings-error',
-				sprintf(
-					__('AWS Error: %s (Error code: %s)', 's3-media-sync'),
-					$error_message,
-					$error_code
-				)
-			);
+
 			return $this->settings;
+
 		} catch (\Exception $e) {
-			// Log only essential error information
-			error_log(sprintf(
-				'S3 Media Sync client creation error: %s',
-				$e->getMessage()
-			));
-			
 			add_settings_error(
 				's3_media_sync_settings',
 				's3-media-sync-settings-error',
 				sprintf(
-					__('Error creating S3 client: %s. Please verify your credentials and settings.', 's3-media-sync'),
+					__('Error validating settings: %s', 's3-media-sync'),
 					$e->getMessage()
 				)
 			);
-			return $this->settings;
+			return $this->settings; // Return old settings
 		}
 	}
 
@@ -403,13 +463,48 @@ class S3_Media_Sync_Settings {
 
 	// Render the S3 Region text field
 	public function s3_region_render() {
-		$options = get_option( 's3_media_sync_settings' );
-		$value   = ! empty( $options['region'] ) ? $options['region'] : '';
+		$options = get_option('s3_media_sync_settings');
+		$current_value = !empty($options['region']) ? $options['region'] : '';
+		
+		// Get list of valid regions with their display names
+		$valid_regions = [];
+		foreach (Region::get_valid_regions() as $region_id) {
+			try {
+				$region = Region::from_string($region_id);
+				$valid_regions[$region_id] = $region->get_display_name();
+			} catch (\Exception $e) {
+				continue; // Skip invalid regions
+			}
+		}
+		
+		// If current value is not in valid regions, add a warning
+		if (!empty($current_value) && !isset($valid_regions[$current_value])) {
+			echo '<div class="notice notice-warning inline"><p>';
+			printf(
+				__('Warning: Current region "%s" is not valid. Please select a valid region from the dropdown.', 's3-media-sync'),
+				esc_html($current_value)
+			);
+			echo '</p></div>';
+		}
+		
+		// Create the dropdown HTML
+		echo '<select name="s3_media_sync_settings[region]" id="s3_media_sync_settings[region]" required>';
+		echo '<option value="">' . esc_html__('-- Select a Region --', 's3-media-sync') . '</option>';
+		
+		foreach ($valid_regions as $region_id => $display_name) {
+			printf(
+				'<option value="%s"%s>%s (%s)</option>',
+				esc_attr($region_id),
+				selected($current_value, $region_id, false),
+				esc_html($region_id),
+				esc_html($display_name)
+			);
+		}
+		echo '</select>';
+		
 		printf(
-			'<input type="text" name="s3_media_sync_settings[region]" id="s3_media_sync_settings[region]" value="%s">
-			<p class="description">%s</p>',
-			esc_attr( $value ),
-			__('Enter the AWS region where your bucket is located (e.g., us-east-1, us-west-2).', 's3-media-sync')
+			'<p class="description">%s</p>',
+			__('Select the AWS region where your bucket is located.', 's3-media-sync')
 		);
 	}
 
@@ -497,8 +592,29 @@ class S3_Media_Sync_Settings {
 	 *
 	 * @return array
 	 */
-	public function get_settings() {
-		return $this->settings;
+	public function get_settings(): array {
+		// Define the expected order of settings
+		$ordered_keys = [
+			'bucket',
+			'key',
+			'secret',
+			'region',
+			'use_acl',
+			'object_acl'
+		];
+
+		// Create ordered array with only existing settings
+		$ordered_settings = [];
+		foreach ($ordered_keys as $key) {
+			if ($key === 'use_acl') {
+				// Always include use_acl with default true
+				$ordered_settings[$key] = isset($this->settings[$key]) ? (bool)$this->settings[$key] : true;
+			} elseif (array_key_exists($key, $this->settings)) {
+				$ordered_settings[$key] = $this->settings[$key];
+			}
+		}
+
+		return $ordered_settings;
 	}
 
 	/**
@@ -506,9 +622,10 @@ class S3_Media_Sync_Settings {
 	 *
 	 * @param array $settings New settings to save
 	 */
-	public function update_settings( array $settings ) {
+	public function update_settings(array $settings): void {
+		// Store settings exactly as provided
 		$this->settings = $settings;
-		update_option( 's3_media_sync_settings', $settings );
+		update_option('s3_media_sync_settings', $settings);
 	}
 
 	/**

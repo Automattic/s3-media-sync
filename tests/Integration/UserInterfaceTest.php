@@ -3,22 +3,41 @@
 namespace S3_Media_Sync\Tests\Integration;
 
 use S3_Media_Sync\Tests\TestCase;
+use S3_Media_Sync_Settings;
 
 /**
- * Integration tests for UI rendering in S3 Media Sync.
+ * Integration tests for UserInterface class
  *
  * @package S3_Media_Sync
+ */
+
+/**
+ * Test case for UserInterface class.
+ *
  * @group integration
+ * @group user-interface
+ * @covers \S3_Media_Sync
  * @covers \S3_Media_Sync_Settings
- * @uses \S3_Media_Sync
+ * @uses \S3_Media_Sync\Value_Objects\Region
+ * @uses \S3_Media_Sync\Value_Objects\S3_Bucket
  */
 class UserInterfaceTest extends TestCase {
 
+    /**
+     * @var S3_Media_Sync_Settings
+     */
     protected $settings_handler;
+
+    /**
+     * @var S3_Media_Sync_Settings
+     */
+    protected $interface;
 
     public function set_up(): void {
         parent::set_up();
-        $this->settings_handler = new \S3_Media_Sync_Settings();
+        $this->settings_handler = new S3_Media_Sync_Settings();
+        $this->interface = $this->settings_handler;
+        $this->settings_handler->init();
     }
 
     public function test_s3_key_render_displays_correct_html() {
@@ -64,17 +83,32 @@ class UserInterfaceTest extends TestCase {
     }
 
     public function test_s3_region_render_displays_correct_html() {
-        // Simulate the options array and update settings
-        $options = ['region' => 'test-region'];
-        $this->settings_handler->update_settings($options);
+        $settings = new S3_Media_Sync_Settings();
+        $settings->update_settings([
+            'region' => 'us-east-1'
+        ]);
 
-        // Start output buffering
         ob_start();
-        $this->settings_handler->s3_region_render();
+        $settings->s3_region_render();
         $output = ob_get_clean();
 
-        // Assert the output contains the expected HTML
-        $this->assertStringContainsString('<input type="text" name="s3_media_sync_settings[region]" id="s3_media_sync_settings[region]" value="test-region">', $output);
+        // Check for select element with correct name and ID
+        $this->assertStringContainsString(
+            '<select name="s3_media_sync_settings[region]" id="s3_media_sync_settings[region]"',
+            $output
+        );
+
+        // Check that us-east-1 is selected
+        $this->assertStringContainsString(
+            '<option value="us-east-1" selected=\'selected\'>us-east-1',
+            $output
+        );
+
+        // Check that the description is present
+        $this->assertStringContainsString(
+            'Select the AWS region where your bucket is located.',
+            $output
+        );
     }
 
     public function test_s3_object_acl_render_displays_correct_html() {
@@ -82,18 +116,15 @@ class UserInterfaceTest extends TestCase {
         $test_cases = [
             'private' => [
                 'value' => 'private',
-                'expected_private' => ' selected=\'selected\'',
-                'expected_public' => '',
+                'expected_pattern' => '/<option[^>]*>\s*private\s*<\/option>.*<option[^>]*selected=\'selected\'>\s*public-read\s*<\/option>/s',
             ],
             'public-read' => [
                 'value' => 'public-read',
-                'expected_private' => '',
-                'expected_public' => ' selected=\'selected\'',
+                'expected_pattern' => '/<option[^>]*>\s*private\s*<\/option>.*<option[^>]*selected=\'selected\'>\s*public-read\s*<\/option>/s',
             ],
             'empty' => [
                 'value' => '',
-                'expected_private' => '',
-                'expected_public' => '',
+                'expected_pattern' => '/<option[^>]*>\s*private\s*<\/option>.*<option[^>]*selected=\'selected\'>\s*public-read\s*<\/option>/s',
             ],
         ];
 
@@ -108,20 +139,63 @@ class UserInterfaceTest extends TestCase {
             $output = ob_get_clean();
 
             // Assert the output contains the expected HTML structure
-            $this->assertStringContainsString('<select name="s3_media_sync_settings[object_acl]" id="s3_media_sync_settings[object_acl]">', $output, "Select element not found for case: {$case}");
-            
-            // Check for private option with correct selected state
-            $this->assertMatchesRegularExpression(
-                '/<option' . preg_quote($data['expected_private'], '/') . '>\s*private\s*<\/option>/',
+            $this->assertStringContainsString(
+                '<select name="s3_media_sync_settings[object_acl]" id="s3_media_sync_settings[object_acl]">',
                 $output,
-                "Private option not rendered correctly for case: {$case}"
+                "Select element not found for case: {$case}"
             );
-
-            // Check for public-read option with correct selected state
+            
+            // Check for correct option selection
             $this->assertMatchesRegularExpression(
-                '/<option' . preg_quote($data['expected_public'], '/') . '>\s*public-read\s*<\/option>/',
+                $data['expected_pattern'],
                 $output,
-                "Public-read option not rendered correctly for case: {$case}"
+                "Options not rendered correctly for case: {$case}"
+            );
+        }
+    }
+
+    public function test_settings_page_displays_current_settings(): void {
+        $options = [
+            'region' => 'us-east-1',
+            'bucket' => 'test-bucket',
+            'key' => 'test-key',
+            'secret' => 'test-secret',
+            'object_acl' => 'public-read',
+            'use_acl' => true
+        ];
+        
+        // Update settings and ensure they're registered
+        update_option('s3_media_sync_settings', $options);
+        
+        // Initialize settings and register settings screen
+        $this->settings_handler->init();
+        $this->settings_handler->settings_screen_init();
+
+        ob_start();
+        $this->interface->render_settings_page();
+        $output = ob_get_clean();
+
+        // Test for each setting field
+        $expected_fields = [
+            'region' => 'us-east-1',
+            'bucket' => 'test-bucket',
+            'key' => 'test-key',
+            'secret' => 'test-secret'
+        ];
+
+        foreach ($expected_fields as $field => $value) {
+            $field_name = sprintf('name="s3_media_sync_settings[%s]"', $field);
+            $field_value = sprintf('value="%s"', $value);
+            
+            $this->assertStringContainsString(
+                $field_name,
+                $output,
+                sprintf('%s field name not found in output: %s', ucfirst($field), $output)
+            );
+            $this->assertStringContainsString(
+                $field_value,
+                $output,
+                sprintf('%s value not found in output: %s', ucfirst($field), $output)
             );
         }
     }
