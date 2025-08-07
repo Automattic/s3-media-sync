@@ -24,10 +24,10 @@ class S3_Media_Sync_Settings {
 				$this->settings['region'] = $region->get_identifier();
 			} catch (\S3_Media_Sync\Exceptions\Invalid_Region_Exception $e) {
 				// If region is invalid, remove it from settings
-				// error_log(sprintf(
-				// 	'S3 Media Sync: Removed invalid region "%s" from settings',
-				// 	$this->settings['region']
-				// ));
+				S3_Media_Sync_Logger::warning(
+					sprintf('Removed invalid region "%s" from settings', $this->settings['region']),
+					['exception' => $e->getMessage()]
+				);
 				unset($this->settings['region']);
 				update_option('s3_media_sync_settings', $this->settings);
 			}
@@ -160,7 +160,11 @@ class S3_Media_Sync_Settings {
 				}
 
 				// Log the full error for debugging
-				// error_log('S3 Media Sync: Bucket validation failed - ' . $error_msg);
+				S3_Media_Sync_Logger::error('Bucket validation failed', [
+					'bucket' => $input['bucket'],
+					'region' => $input['region'],
+					'error' => $error_msg
+				]);
 
 				// Show only the friendly message to the user
 				add_settings_error(

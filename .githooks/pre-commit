@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# Pre-commit hook for S3 Media Sync
+# This hook runs code quality checks before allowing commits
+#
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo "${YELLOW}Running pre-commit checks...${NC}"
+
+# Check if composer is available
+if ! command -v composer &> /dev/null; then
+    echo "${RED}Composer not found. Please install composer to run pre-commit checks.${NC}"
+    exit 1
+fi
+
+# Run PHP CodeSniffer
+echo "Running PHP CodeSniffer..."
+if composer phpcs --quiet; then
+    echo "${GREEN}✓ PHP CodeSniffer passed${NC}"
+else
+    echo "${RED}✗ PHP CodeSniffer failed${NC}"
+    echo "Run 'composer phpcbf' to fix auto-fixable issues"
+    echo "Run 'composer phpcs' to see detailed issues"
+    exit 1
+fi
+
+# Run PHPStan (if available)
+if composer phpstan --version &> /dev/null; then
+    echo "Running PHPStan..."
+    if composer phpstan --quiet; then
+        echo "${GREEN}✓ PHPStan passed${NC}"
+    else
+        echo "${RED}✗ PHPStan failed${NC}"
+        echo "Run 'composer phpstan' to see detailed issues"
+        exit 1
+    fi
+else
+    echo "${YELLOW}PHPStan not available, skipping static analysis${NC}"
+fi
+
+# Run unit tests
+echo "Running unit tests..."
+if composer test-unit --quiet; then
+    echo "${GREEN}✓ Unit tests passed${NC}"
+else
+    echo "${RED}✗ Unit tests failed${NC}"
+    echo "Run 'composer test-unit' to see detailed test results"
+    exit 1
+fi
+
+echo "${GREEN}All pre-commit checks passed!${NC}"
+exit 0

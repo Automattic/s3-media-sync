@@ -33,18 +33,18 @@ class S3_Media_Sync {
 		return $this->settings_handler;
 	}
 
-	public function get_s3_bucket() {
+	public function get_s3_bucket(): string {
 		return $this->bucket->get_name();
 	}
 
-	public function get_s3_bucket_url() {
+	public function get_s3_bucket_url(): string {
 		return 's3://' . $this->bucket->get_name();
 	}
 
 	/**
 	 * Setup for the plugin
 	 */
-	public function setup() {
+	public function setup(): void {
 		// Load the plugin text domain for translation
 		load_plugin_textdomain( 's3-media-sync', false, basename( dirname( __FILE__ ) ) . '/languages/' );
 
@@ -53,7 +53,7 @@ class S3_Media_Sync {
 
 		// Only proceed with stream wrapper and hooks if we have all required settings
 		if (!$this->settings_handler->has_required_settings()) {
-			// error_log('S3 Media Sync: Required settings missing - hooks not registered');
+			S3_Media_Sync_Logger::debug('Required settings missing - hooks not registered');
 			return;
 		}
 
@@ -94,12 +94,47 @@ class S3_Media_Sync {
 	 *
 	 * @return S3_Media_Sync_Client_Factory
 	 */
-	private function get_client_factory() {
+	private function get_client_factory(): S3_Media_Sync_Client_Factory {
 		// Allow tests to override the factory via global
 		if (isset($GLOBALS['s3_media_sync_client_factory'])) {
 			return $GLOBALS['s3_media_sync_client_factory'];
 		}
 		return new S3_Media_Sync_Client_Factory();
+	}
+
+	/**
+	 * Check if a file should be uploaded to S3
+	 *
+	 * @param array $upload Upload data from WordPress
+	 * @return bool Whether the file should be uploaded
+	 */
+	private function should_upload_file(array $upload): bool {
+		// Check if file was uploaded successfully
+		if (isset($upload['error']) && $upload['error'] !== 0) {
+			return false;
+		}
+
+		// Check if file path exists
+		if (!isset($upload['file']) || !file_exists($upload['file'])) {
+			return false;
+		}
+
+		// Check if S3 is properly configured
+		if (!$this->is_s3_configured()) {
+			return false;
+		}
+
+		// Check file size limits (optional - could be made configurable)
+		$file_size = filesize($upload['file']);
+		if ($file_size === false || $file_size > (100 * 1024 * 1024)) { // 100MB limit
+			S3_Media_Sync_Logger::warning('File too large for S3 upload', [
+				'file' => $upload['file'],
+				'size' => $file_size
+			]);
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -111,6 +146,11 @@ class S3_Media_Sync {
 	 * @return array Upload info
 	 */
 	public function add_attachment_to_s3($upload, string $context = 'upload'): array {
+		// Early validation to prevent unnecessary processing
+		if (!$this->should_upload_file($upload)) {
+			return $upload;
+		}
+
 		try {
 			// Create value objects for the file
 			$local_file = Local_File::from_path($upload['file']);
@@ -144,10 +184,16 @@ class S3_Media_Sync {
 			return $upload;
 		} catch (\Aws\S3\Exception\S3Exception $e) {
 			// Integration tests need this to pass.
-			error_log('S3 Media Sync: ' . $e->getMessage());
+			S3_Media_Sync_Logger::error('S3 upload failed', [
+				'file' => $upload['file'] ?? 'unknown',
+				'error' => $e->getMessage()
+			]);
 			return $upload;
 		} catch (\Exception $e) {
-			// error_log('S3 Media Sync: Failed to upload - ' . $e->getMessage());
+			S3_Media_Sync_Logger::error('Failed to upload file', [
+				'file' => $upload['file'] ?? 'unknown',
+				'error' => $e->getMessage()
+			]);
 			return $upload;
 		}
 	}

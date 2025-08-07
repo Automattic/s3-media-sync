@@ -29,6 +29,25 @@ For detailed information, please see the documentation in the `docs` directory:
 - [Development Guide](docs/development.md) - Information for developers
 - [FAQ](docs/faq.md) - Frequently asked questions
 
+## Development
+
+### Quick Development Setup
+
+1. Clone the repository
+2. Install dependencies: `composer install`
+3. Install pre-commit hook: `cp .githooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
+4. Run tests: `composer test`
+
+### Available Commands
+
+- `composer test` - Run all tests (unit + integration)
+- `composer test-unit` - Run unit tests only
+- `composer test-integration` - Run integration tests only
+- `composer phpcs` - Check coding standards
+- `composer phpcbf` - Fix coding standards issues
+- `composer phpstan` - Run static analysis
+- `composer lint` - Run all linting tools
+
 ## Quick Start
 
 1. Install and activate the plugin

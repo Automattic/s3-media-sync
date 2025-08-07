@@ -1,5 +1,19 @@
 # Development Guide
 
+## Development Setup
+
+### Git Hooks
+
+To ensure code quality, you can install the provided pre-commit hook:
+
+```sh
+# Install the pre-commit hook
+cp .githooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+This hook will automatically run code quality checks before each commit.
+
 ## Integration Tests
 
 Start your local development environment of choice and run the `bin/install-wp-tests.sh` script to set up the
@@ -42,6 +56,18 @@ To run all tests:
 composer test
 ```
 
+To run only unit tests:
+
+```sh
+composer test-unit
+```
+
+To run only integration tests:
+
+```sh
+composer test-integration
+```
+
 ## Coding Standards
 
 This plugin follows the WordPress coding standards. To check your code for standards compliance, run:
@@ -54,4 +80,22 @@ To automatically fix many common coding standards issues:
 
 ```sh
 composer phpcbf
+```
+
+To run static analysis with PHPStan:
+
+```sh
+composer phpstan
+```
+
+To run all linting tools:
+
+```sh
+composer lint
+```
+
+To automatically fix coding standards issues:
+
+```sh
+composer lint-fix
 ``` 
