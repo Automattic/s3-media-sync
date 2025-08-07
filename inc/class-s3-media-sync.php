@@ -21,7 +21,11 @@ class S3_Media_Sync {
 	public function __construct( S3_Media_Sync_Settings $settings_handler ) {
 		$this->settings_handler = $settings_handler;
 		$this->settings        = $this->settings_handler->get_settings();
-		$this->bucket         = S3_Bucket::from_settings($this->settings);
+		
+		// Only create bucket if we have required settings
+		if ( $this->settings_handler->has_required_settings() ) {
+			$this->bucket = S3_Bucket::from_settings($this->settings);
+		}
 	}
 
 	/**
@@ -34,10 +38,16 @@ class S3_Media_Sync {
 	}
 
 	public function get_s3_bucket() {
+		if ( $this->bucket === null ) {
+			return '';
+		}
 		return $this->bucket->get_name();
 	}
 
 	public function get_s3_bucket_url() {
+		if ( $this->bucket === null ) {
+			return '';
+		}
 		return 's3://' . $this->bucket->get_name();
 	}
 
