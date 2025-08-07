@@ -1,0 +1,26 @@
+includes:
+	- inc
+	- s3-media-sync.php
+
+parameters:
+	level: 5
+	paths:
+		- inc
+		- s3-media-sync.php
+	bootstrapFiles:
+		- tests/bootstrap.php
+	excludePaths:
+		- inc/class-s3-media-sync-wp-cli.php
+	scanDirectories:
+		- vendor/brain/monkey
+	scanFiles:
+		- vendor/yoast/wp-test-utils/src/BrainMonkey/bootstrap.php
+	wordpress:
+		wpContentDir: /wp-content
+	ignoreErrors:
+		# WordPress functions are not defined in CLI context
+		- '#Function (add_action|add_filter|wp_nonce_field|wp_verify_nonce|current_user_can|get_option|update_option|load_plugin_textdomain|admin_url|is_wp_error|wp_die|wp_redirect|sanitize_.*|esc_.*) not found\.#'
+		# WordPress constants not defined
+		- '#Constant (WP_DEBUG|ABSPATH|WP_CONTENT_DIR|WPINC) not found\.#'
+		# WordPress classes not defined
+		- '#Class (WP_Error|WP_CLI|WPCOM_VIP_CLI_Command) not found\.#'

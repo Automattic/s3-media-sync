@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
-	bootstrap="tests/bootstrap.php"
+	bootstrap="tests/Unit/bootstrap.php"
 	beStrictAboutCoversAnnotation="true"
 	beStrictAboutOutputDuringTests="true"
 	beStrictAboutTodoAnnotatedTests="true"
@@ -9,37 +9,26 @@
 	testdox="true"
 	failOnWarning="true"
 	failOnRisky="true"
-	defaultTestSuite="unit"
 	verbose="true"
 	>
 	<php>
 		<ini name="display_errors" value="On" />
 		<ini name="display_startup_errors" value="On" />
 		<ini name="memory_limit" value="2G" />
-		<ini name="xdebug.mode" value="coverage" />
 	</php>
 	<coverage processUncoveredFiles="true">
 		<include>
 			<directory suffix=".php">inc</directory>
-			<file>s3-media-sync.php</file>
 		</include>
 		<exclude>
 			<directory>vendor</directory>
 			<directory>tests</directory>
 			<file>inc/class-s3-media-sync-wp-cli.php</file>
 		</exclude>
-		<report>
-			<clover outputFile="build/logs/clover.xml"/>
-			<html outputDirectory="build/coverage"/>
-			<text outputFile="php://stdout" showUncoveredFiles="true"/>
-		</report>
 	</coverage>
 	<testsuites>
 		<testsuite name="unit">
 			<directory suffix="Test.php">tests/Unit</directory>
-		</testsuite>
-		<testsuite name="integration">
-			<directory suffix="Test.php">tests/Integration</directory>
 		</testsuite>
 	</testsuites>
 	<groups>
@@ -47,15 +36,4 @@
 			<group>skip</group>
 		</exclude>
 	</groups>
-	<!-- Use different bootstrap for unit tests -->
-	<php>
-		<ini name="display_errors" value="On" />
-		<ini name="display_startup_errors" value="On" />
-		<ini name="memory_limit" value="2G" />
-	</php>
-	<logging>
-		<testdoxHtml outputFile="build/testdox.html"/>
-		<testdoxText outputFile="build/testdox.txt"/>
-		<junit outputFile="build/logs/junit.xml"/>
-	</logging>
 </phpunit>
