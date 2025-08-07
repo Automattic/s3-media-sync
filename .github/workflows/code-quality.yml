@@ -1,0 +1,36 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up PHP 8.3
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 8.3
+        tools: composer
+
+    - name: Install Composer dependencies
+      uses: ramsey/composer-install@v3
+
+    - name: Run PHP CodeSniffer
+      run: composer phpcs
+
+    - name: Run unit tests
+      run: composer test-unit
+
+    # Note: PHPStan and other tools would run here if composer installation worked
+    # For now, they are commented out due to composer timeout issues
+    # - name: Run PHPStan
+    #   run: composer phpstan

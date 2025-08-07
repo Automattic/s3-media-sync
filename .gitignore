@@ -3,3 +3,18 @@
 /vendor/
 composer.lock
 /.phpunit.result.cache
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+/coverage/
+/clover.xml

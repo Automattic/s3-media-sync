@@ -45,9 +45,15 @@ jobs:
     - name: Prepare environment for integration tests
       run: composer prepare-ci
 
+    - name: Run unit tests
+      run: composer test-unit
+
+    - name: Run code style checks
+      run: composer phpcs
+
     - name: Run integration tests (single site)
       if: ${{ matrix.php != 8.2 }}
-      run: composer test
+      run: composer test-integration
     - name: Run integration tests (single site with code coverage)
       if: ${{ matrix.php == 8.2 }}
       run: composer coverage-ci
