@@ -1,7 +1,16 @@
 {
 	"name": "wpcomvip/s3-media-sync",
+	"description": "Sync full media backups to S3.",
 	"license": "GPL-2.0-or-later",
 	"type": "wordpress-plugin",
+	"authors": [
+		{
+			"name": "Alexis Kulash",
+			"email": "alexis@wordpress.com",
+			"role": "Developer"
+		}
+	],
+	"homepage": "https://github.com/Automattic/s3-media-sync",
 	"support": {
 		"issues": "https://github.com/Automattic/s3-media-sync/issues",
 		"source": "https://github.com/Automattic/s3-media-sync"
@@ -12,7 +21,9 @@
 		"composer/installers": "^1.0 || ^2.0"
 	},
 	"require-dev": {
+		"automattic/vipwpcs": "^3.0",
 		"mockery/mockery": "^1.6",
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
 		"phpunit/phpunit": "^9.6",
 		"yoast/wp-test-utils": "^1.2"
 	},
@@ -33,12 +44,16 @@
 		"allow-plugins": {
 			"composer/installers": true,
 			"dealerdirect/phpcodesniffer-composer-installer": true
-		}
+		},
+		"sort-packages": true
 	},
 	"scripts": {
 		"coverage": [
 			"@putenv XDEBUG_MODE=coverage",
 			"./vendor/bin/phpunit --testsuite integration --coverage-text --coverage-html build/coverage"
+		],
+		"i18n": [
+			"@php wp i18n make-pot . ./languages/s3-media-sync.pot"
 		],
 		"prepare-ci": [
 			"bash bin/install-wp-tests.sh wordpress_test root root localhost"
@@ -54,7 +69,10 @@
 	},
 	"scripts-descriptions": {
 		"coverage": "Run tests with code coverage reporting",
+		"i18n": "Generate a POT file for translation",
+		"prepare-ci": "Prepare the environment for integration tests",
 		"test": "Run all tests for the S3 Media Sync plugin.",
-		"test-integration": "Run integration tests with code coverage for the S3 Media Sync plugin, and send results to stdout."
+		"test-integration": "Run integration tests with code coverage for the S3 Media Sync plugin, and send results to stdout.",
+		"test-ms": "Run integration tests for the S3 Media Sync plugin in multisite mode."
 	}
 }
