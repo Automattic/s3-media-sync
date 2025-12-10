@@ -1,0 +1,12 @@
+{
+  "name": "s3-media-sync",
+  "version": "1.0.0",
+  "description": "Sync full media backups to S3.",
+  "private": true,
+  "scripts": {
+    "wp-env": "wp-env"
+  },
+  "devDependencies": {
+    "@wordpress/env": "^10.0.0"
+  }
+}
