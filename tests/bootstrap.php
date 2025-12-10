@@ -5,54 +5,56 @@
  * @package S3_Media_Sync
  */
 
+declare( strict_types=1 );
+
 namespace S3_Media_Sync\Tests;
 
 use Yoast\WPTestUtils\WPIntegration;
 
-// Set up default test settings
+// Set up default test settings.
 $GLOBALS['s3_media_sync_test_settings'] = [
-	'bucket' => 'test-bucket',
-	'key' => 'test-key',
-	'secret' => 'test-secret',
-	'region' => 'us-east-1',
+	'bucket'     => 'test-bucket',
+	'key'        => 'test-key',
+	'secret'     => 'test-secret',
+	'region'     => 'us-east-1',
 	'object_acl' => 'public-read',
-	'use_acl' => true
+	'use_acl'    => true,
 ];
 
+require_once dirname( __DIR__ ) . '/vendor/yoast/wp-test-utils/src/WPIntegration/bootstrap-functions.php';
+
 // Check for a `--testsuite integration` arg when calling phpunit, and use it to conditionally load up WordPress.
-$plugin_slug_argv = $GLOBALS['argv'];
-$plugin_slug_key  = (int) array_search( '--testsuite', $plugin_slug_argv, true );
+$s3_media_sync_argv = $GLOBALS['argv'];
+$s3_media_sync_key  = array_search( '--testsuite', $s3_media_sync_argv, true );
+
+$is_integration = false !== $s3_media_sync_key && isset( $s3_media_sync_argv[ $s3_media_sync_key + 1 ] ) && 'integration' === $s3_media_sync_argv[ $s3_media_sync_key + 1 ];
 
 // Integration testing.
-if ( $plugin_slug_key && 'integration' === $plugin_slug_argv[ $plugin_slug_key + 1 ] ) {
-	$plugin_slug_tests_dir = getenv( 'WP_TESTS_DIR' );
+if ( $is_integration ) {
+	$_tests_dir = WPIntegration\get_path_to_wp_test_dir();
 
-	if ( ! $plugin_slug_tests_dir ) {
-		$plugin_slug_tests_dir = rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress-tests-lib';
-	}
-
-	if ( ! file_exists( $plugin_slug_tests_dir . '/includes/functions.php' ) ) {
-		echo 'Could not find ' . $plugin_slug_tests_dir . '/includes/functions.php, have you run bin/install-wp-tests.sh?' . PHP_EOL; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	if ( empty( $_tests_dir ) ) {
+		echo 'ERROR: Could not find WordPress test library directory.' . PHP_EOL;
+		echo 'Make sure wp-env is running: npm run wp-env start' . PHP_EOL;
 		exit( 1 );
 	}
 
-	if ( getenv( 'WP_PLUGIN_DIR' ) !== false ) {
-		define( 'WP_PLUGIN_DIR', getenv( 'WP_PLUGIN_DIR' ) );
-	} else {
-		define( 'WP_PLUGIN_DIR', dirname( __DIR__, 2 ) );
-	}
-
-	// Set up test settings in WordPress options table before loading WordPress
-	require_once $plugin_slug_tests_dir . '/includes/functions.php';
-	tests_add_filter('pre_option_s3_media_sync_settings', function() {
-		return $GLOBALS['s3_media_sync_test_settings'];
-	});
-
-	$GLOBALS['wp_tests_options'] = array(
-		'active_plugins' => [ 's3-media-sync/s3-media-sync.php' ],
+	// Set up test settings in WordPress options table before loading WordPress.
+	require_once $_tests_dir . '/includes/functions.php';
+	\tests_add_filter(
+		'pre_option_s3_media_sync_settings',
+		function () {
+			return $GLOBALS['s3_media_sync_test_settings'];
+		}
 	);
 
-	require_once dirname( __DIR__ ) . '/vendor/yoast/wp-test-utils/src/WPIntegration/bootstrap-functions.php';
+	// Load the plugin.
+	\tests_add_filter(
+		'muplugins_loaded',
+		function (): void {
+			require dirname( __DIR__ ) . '/s3-media-sync.php';
+		}
+	);
 
 	/*
 	 * Bootstrap WordPress. This will also load the Composer autoload file, the PHPUnit Polyfills
@@ -60,15 +62,10 @@ if ( $plugin_slug_key && 'integration' === $plugin_slug_argv[ $plugin_slug_key +
 	 */
 	WPIntegration\bootstrap_it();
 
-	if ( ! defined( 'WP_PLUGIN_DIR' ) || file_exists( WP_PLUGIN_DIR . '/s3-media-sync/s3-media-sync.php' ) === false ) {
-		echo PHP_EOL, 'ERROR: Please check whether the WP_PLUGIN_DIR environment variable is set and set to the correct value. The integration test suite won\'t be able to run without it.', PHP_EOL;
-		exit( 1 );
-	}
-
-	// Load test utilities
+	// Load test utilities.
 	require_once __DIR__ . '/trait-tests-reflection.php';
 
 } else {
-	// Unit testing bootstrap goes here.
+	// Unit testing bootstrap.
 	require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 }
