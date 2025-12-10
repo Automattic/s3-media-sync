@@ -1,0 +1,98 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'phpunit.xml.dist'
+      - '.wp-env.json'
+      - '.github/workflows/integrations.yml'
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'phpunit.xml.dist'
+      - '.wp-env.json'
+      - '.github/workflows/integrations.yml'
+  workflow_dispatch:
+
+# Cancel previous runs of this workflow if a new one is triggered.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  integration-tests:
+    name: PHP ${{ matrix.php }} / WP ${{ matrix.wordpress }}${{ matrix.multisite == '1' && ' (MS)' || '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
+        wordpress: ['6.4', '6.5', '6.6', '6.7', 'master']
+        multisite: ['0', '1']
+        exclude:
+          # Only test multisite with latest stable WordPress.
+          - wordpress: '6.4'
+            multisite: '1'
+          - wordpress: '6.5'
+            multisite: '1'
+          - wordpress: '6.6'
+            multisite: '1'
+          - wordpress: 'master'
+            multisite: '1'
+
+    env:
+      WP_ENV_PHP_VERSION: ${{ matrix.php }}
+      WP_ENV_CORE: ${{ matrix.wordpress == 'master' && 'WordPress/WordPress#master' || format('https://wordpress.org/wordpress-{0}.zip', matrix.wordpress) }}
+
+    steps:
+      - name: Checkout code
+        # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        # v4.4.0
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      - name: Setup PHP ${{ matrix.php }}
+        # v2.34.0
+        uses: shivammathur/setup-php@6d7209f44a25a59e904b1ee9f3b0c33ab2cd888d
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Install Composer dependencies
+        # v3.2.0
+        uses: ramsey/composer-install@a2636af0004bc7b0b9e41a6a3679f227cc3ffb9d
+
+      - name: Start wp-env
+        run: npm run wp-env start
+
+      - name: Run integration tests (single site)
+        if: matrix.multisite == '0'
+        run: composer test:integration
+
+      - name: Run integration tests (multisite)
+        if: matrix.multisite == '1'
+        run: composer test:integration-ms
