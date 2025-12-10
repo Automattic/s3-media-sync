@@ -8,9 +8,6 @@
     "WP_DEBUG_LOG": true,
     "SCRIPT_DEBUG": true
   },
-  "lifecycleScripts": {
-    "afterStart": "wp-env run cli wp plugin install query-monitor --activate"
-  },
   "env": {
     "tests": {
       "phpVersion": "8.4",
