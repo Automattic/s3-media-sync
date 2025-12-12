@@ -416,9 +416,9 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 		
 		// Get a batch of attachments
 		$sql = $wpdb->prepare(
-			"SELECT ID, post_title FROM wp_posts 
-			WHERE post_type = 'attachment' 
-			ORDER BY ID 
+			"SELECT ID, post_title FROM {$wpdb->posts}
+			WHERE post_type = 'attachment'
+			ORDER BY ID
 			LIMIT %d OFFSET %d",
 			$limit, $offset
 		);
@@ -490,18 +490,9 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 					$count_size_mismatch++;
 					
 					if ( $fix ) {
-						// Upload the corrected file
-						try {
-							$s3_client->putObject([
-								'Bucket' => $bucket_name,
-								'Key' => $prefix . $s3_key,
-								'SourceFile' => $local_file_path,
-								'ACL' => 'public-read',
-							]);
+						$is_fixed = $this->upload_file_to_s3( $s3_client, $bucket_name, $prefix . $s3_key, $local_file_path );
+						if ( $is_fixed ) {
 							$count_fixed++;
-							$is_fixed = true;
-						} catch ( \Exception $upload_e ) {
-							// Failed to fix
 						}
 					}
 				}
@@ -511,44 +502,26 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 					if ( $s3_etag !== $local_md5 ) {
 						$issue_type = 'MD5 mismatch';
 						$count_md5_mismatch++;
-						
+
 						if ( $fix ) {
-							// Upload the corrected file
-							try {
-								$s3_client->putObject([
-									'Bucket' => $bucket_name,
-									'Key' => $prefix . $s3_key,
-									'SourceFile' => $local_file_path,
-									'ACL' => 'public-read',
-								]);
+							$is_fixed = $this->upload_file_to_s3( $s3_client, $bucket_name, $prefix . $s3_key, $local_file_path );
+							if ( $is_fixed ) {
 								$count_fixed++;
-								$is_fixed = true;
-							} catch ( \Exception $upload_e ) {
-								// Failed to fix
 							}
 						}
 					}
 				}
-				
+
 			} catch ( \Exception $e ) {
 				// File doesn't exist on S3
 				$s3_exists = false;
 				$issue_type = 'Missing on S3';
 				$count_missing++;
-				
+
 				if ( $fix ) {
-					// Upload the missing file
-					try {
-						$s3_client->putObject([
-							'Bucket' => $bucket_name,
-							'Key' => $prefix . $s3_key,
-							'SourceFile' => $local_file_path,
-							'ACL' => 'public-read',
-						]);
+					$is_fixed = $this->upload_file_to_s3( $s3_client, $bucket_name, $prefix . $s3_key, $local_file_path );
+					if ( $is_fixed ) {
 						$count_fixed++;
-						$is_fixed = true;
-					} catch ( \Exception $upload_e ) {
-						// Failed to fix
 					}
 				}
 			}
@@ -992,15 +965,50 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	/**
 	 * Get the S3 Media Sync instance.
 	 *
+	 * @since 2.0.0
+	 *
 	 * @return S3_Media_Sync
 	 */
 	private function get_s3_media_sync() {
 		$settings_handler = new S3_Media_Sync_Settings();
-		$settings = $settings_handler->get_settings();
-		$tester = new S3_Media_Sync_Tester($settings);
-		$s3_media_sync = new S3_Media_Sync($settings_handler);
+		$s3_media_sync    = new S3_Media_Sync( $settings_handler );
 		$s3_media_sync->setup();
 		return $s3_media_sync;
+	}
+
+	/**
+	 * Upload a file to S3 with proper ACL handling.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @param \Aws\S3\S3Client $s3_client      The S3 client.
+	 * @param string           $bucket_name    The bucket name.
+	 * @param string           $key            The S3 object key.
+	 * @param string           $source_file    The local file path.
+	 * @return bool Whether the upload succeeded.
+	 */
+	private function upload_file_to_s3( $s3_client, $bucket_name, $key, $source_file ) {
+		$settings_handler = new S3_Media_Sync_Settings();
+		$settings         = $settings_handler->get_settings();
+
+		$params = [
+			'Bucket'     => $bucket_name,
+			'Key'        => $key,
+			'SourceFile' => $source_file,
+		];
+
+		// Only add ACL if the setting is enabled
+		if ( isset( $settings['use_acl'] ) && $settings['use_acl'] ) {
+			$params['ACL'] = isset( $settings['object_acl'] ) ? $settings['object_acl'] : 'public-read';
+		}
+
+		try {
+			$s3_client->putObject( $params );
+			return true;
+		} catch ( \Exception $e ) {
+			WP_CLI::warning( sprintf( 'Failed to upload %s: %s', $source_file, $e->getMessage() ) );
+			return false;
+		}
 	}
 
 }

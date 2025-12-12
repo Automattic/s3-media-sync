@@ -41,6 +41,13 @@ class S3_Media_Sync {
 		return 's3://' . $this->bucket->get_name();
 	}
 
+	/**
+	 * Get the S3 client instance.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @return \Aws\S3\S3Client|null The S3 client, or null if not initialized.
+	 */
 	public function get_s3_client() {
 		return $this->s3_client;
 	}
