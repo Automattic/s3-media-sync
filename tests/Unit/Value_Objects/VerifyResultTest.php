@@ -122,7 +122,7 @@ class VerifyResultTest extends TestCase {
 		$this->assertSame( 1, $row['ID'] );
 		$this->assertSame( 'Test Image', $row['Title'] );
 		$this->assertSame( 'Missing on S3', $row['Issue'] );
-		$this->assertSame( '1 KB', $row['Local Size'] );
+		$this->assertSame( '1.00 KB', $row['Local Size'] );
 		$this->assertSame( 'N/A', $row['S3 Size'] );
 		$this->assertArrayNotHasKey( 'Fixed', $row );
 	}
