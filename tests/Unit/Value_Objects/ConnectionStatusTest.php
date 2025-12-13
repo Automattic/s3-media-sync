@@ -9,7 +9,7 @@ declare( strict_types=1 );
 
 namespace S3_Media_Sync\Tests\Unit\Value_Objects;
 
-use S3_Media_Sync\Tests\TestCase;
+use S3_Media_Sync\Tests\Unit\TestCase;
 use S3_Media_Sync\Value_Objects\Connection_Status;
 
 /**

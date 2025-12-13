@@ -21,6 +21,7 @@
 		"composer/installers": "^1.0 || ^2.0"
 	},
 	"require-dev": {
+		"automattic/behat-wp-env-context": "dev-main",
 		"automattic/vipwpcs": "^3.0",
 		"mockery/mockery": "^1.6",
 		"php-parallel-lint/php-parallel-lint": "^1.0",
@@ -57,6 +58,8 @@
 		"lint": "@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git",
 		"lint-ci": "@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git --checkstyle",
 		"test": "@test:integration",
+		"test:unit": "@php ./vendor/bin/phpunit --testsuite Unit",
+		"test:cli": "wp-env run tests-cli --env-cwd=wp-content/plugins/s3-media-sync ./vendor/bin/behat",
 		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/s3-media-sync ./vendor/bin/phpunit --testsuite integration",
 		"test:integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/s3-media-sync /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --testsuite integration'"
 	},
@@ -69,6 +72,8 @@
 		"lint": "Run PHP linting",
 		"lint-ci": "Run PHP linting and send results to stdout",
 		"test": "Run all tests",
+		"test:unit": "Run unit tests (no WordPress required)",
+		"test:cli": "Run Behat CLI tests",
 		"test:integration": "Run integration tests",
 		"test:integration-ms": "Run integration tests in multisite mode"
 	}

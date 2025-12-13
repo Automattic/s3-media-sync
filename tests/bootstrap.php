@@ -68,4 +68,5 @@ if ( $is_integration ) {
 } else {
 	// Unit testing bootstrap.
 	require_once dirname( __DIR__ ) . '/vendor/autoload.php';
+	require_once __DIR__ . '/Unit/TestCase.php';
 }
