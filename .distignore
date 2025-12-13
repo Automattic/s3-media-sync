@@ -1,0 +1,22 @@
+# Directories
+/.git/
+/.github/
+/bin/
+/node_modules/
+/tests/
+# Note: /vendor/ is NOT excluded because this plugin has runtime dependencies (AWS SDK)
+
+# Files
+.distignore
+.editorconfig
+.gitattributes
+.gitignore
+.phpcs.xml.dist
+.wp-env.json
+.wp-env.override.json
+CHANGELOG.md
+composer.json
+composer.lock
+package.json
+package-lock.json
+phpunit.xml.dist
