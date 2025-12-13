@@ -2,6 +2,7 @@
 
 use S3_Media_Sync\Services\Cleanup_Service;
 use S3_Media_Sync\Services\S3_Repository;
+use S3_Media_Sync\Services\Status_Service;
 use S3_Media_Sync\Services\Verify_Service;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
 use S3_Media_Sync\Value_Objects\Verify_Result;
@@ -270,81 +271,35 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	 *     $ wp s3-media status
 	 */
 	public function status( $args, $assoc_args ) {
-		$s3 = $this->get_s3_media_sync();
-		$settings_handler = $s3->get_settings_handler();
-		$settings = $settings_handler->get_settings();
-		
-		// Check if required settings are available
-		if ( ! $settings_handler->has_required_settings() ) {
+		$service = $this->get_status_service();
+
+		// Check if required settings are available.
+		if ( ! $service->has_required_settings() ) {
 			WP_CLI::error( 'S3 Media Sync is not properly configured. Please set up your AWS credentials in the WordPress admin.' );
 			return;
 		}
-		
-		// Check S3 connection
-		try {
-			$bucket = $s3->get_s3_bucket();
-			$bucket_parts = explode( '/', $bucket, 2 );
-			$bucket_name = $bucket_parts[0];
-			
-			// Get the S3 client
-			$s3_client = $s3->get_s3_client();
-			
-			// Check bucket accessibility by performing a head bucket request
-			$s3_client->headBucket( array(
-				'Bucket' => $bucket_name
-			) );
-			
-			// Display configuration information
-			WP_CLI::success( 'Successfully connected to S3' );
-			
-			// Create a formatted table of settings
-			$settings_data = array();
-			$settings_data[] = array(
-				'Setting' => 'Bucket',
-				'Value' => $bucket
-			);
-			$settings_data[] = array(
-				'Setting' => 'Region',
-				'Value' => $settings['region']
-			);
-			$settings_data[] = array(
-				'Setting' => 'Use ACLs',
-				'Value' => isset( $settings['use_acl'] ) && $settings['use_acl'] ? 'Yes' : 'No'
-			);
-			$settings_data[] = array(
-				'Setting' => 'Object ACL',
-				'Value' => isset( $settings['object_acl'] ) ? $settings['object_acl'] : 'Not set'
-			);
-			$settings_data[] = array(
-				'Setting' => 'Sync Thumbnails',
-				'Value' => isset( $settings['sync_thumbnails'] ) && $settings['sync_thumbnails'] !== false ? 'Yes' : 'No'
-			);
-			
-			// Display table
-			WP_CLI\Utils\format_items( 'table', $settings_data, array( 'Setting', 'Value' ) );
-			
-			// List IAM user/role details if possible
-			try {
-				$sts_client = new \Aws\Sts\StsClient([
-					'region' => $settings['region'],
-					'version' => 'latest',
-					'credentials' => [
-						'key' => $settings['key'],
-						'secret' => $settings['secret']
-					]
-				]);
-				$identity = $sts_client->getCallerIdentity();
-				
-				WP_CLI::line( '' ); // Empty line for spacing
-				WP_CLI::line( 'AWS Account Information:' );
-				WP_CLI::line( '- Account ID: ' . $identity['Account'] );
-				WP_CLI::line( '- IAM User/Role: ' . $identity['Arn'] );
-			} catch ( \Exception $e ) {
-				WP_CLI::warning( 'Unable to retrieve AWS identity information: ' . $e->getMessage() );
-			}
-			
-		} catch ( \Exception $e ) {
-			WP_CLI::error( sprintf( 'Failed to connect to S3: %s', $e->getMessage() ) );
+
+		// Check S3 connection.
+		$status = $service->get_connection_status();
+
+		if ( ! $status->is_connected() ) {
+			WP_CLI::error( sprintf( 'Failed to connect to S3: %s', $status->get_error() ) );
+			return;
+		}
+
+		WP_CLI::success( 'Successfully connected to S3' );
+
+		// Display settings summary.
+		$settings_data = $service->get_settings_summary();
+		Utils\format_items( 'table', $settings_data, array( 'Setting', 'Value' ) );
+
+		// Display AWS identity if available.
+		$identity = $service->get_aws_identity();
+		if ( null !== $identity ) {
+			WP_CLI::line( '' );
+			WP_CLI::line( 'AWS Account Information:' );
+			WP_CLI::line( '- Account ID: ' . $identity->get_account_id() );
+			WP_CLI::line( '- IAM User/Role: ' . $identity->get_arn() );
 		}
 	}
 
@@ -662,6 +617,22 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 		$repository = new S3_Repository( $s3->get_s3_client(), $bucket );
 
 		return new Cleanup_Service( $repository );
+	}
+
+	/**
+	 * Get the Status Service instance.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @return Status_Service
+	 */
+	private function get_status_service(): Status_Service {
+		$s3         = $this->get_s3_media_sync();
+		$settings   = $s3->get_settings_handler()->get_settings();
+		$bucket     = S3_Bucket::from_settings( $settings );
+		$repository = new S3_Repository( $s3->get_s3_client(), $bucket );
+
+		return new Status_Service( $repository, $settings );
 	}
 
 	/**
