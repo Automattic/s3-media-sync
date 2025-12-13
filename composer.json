@@ -48,28 +48,28 @@
 	"scripts": {
 		"coverage": [
 			"@putenv XDEBUG_MODE=coverage",
-			"./vendor/bin/phpunit --testsuite integration --coverage-text --coverage-html build/coverage"
+			"@php ./vendor/bin/phpunit --testsuite integration --coverage-text --coverage-html build/coverage"
 		],
-		"cs": "phpcs",
-		"cbf": "phpcbf",
-		"i18n": [
-			"@php wp i18n make-pot . ./languages/s3-media-sync.pot"
-		],
-		"lint": "parallel-lint . --exclude vendor --exclude node_modules --exclude .git",
-		"test": [
-			"@test:integration"
-		],
-		"test:integration": "npx wp-env run tests-cli --env-cwd=wp-content/plugins/s3-media-sync ./vendor/bin/phpunit --testsuite integration",
-		"test:integration-ms": "npx wp-env run tests-cli --env-cwd=wp-content/plugins/s3-media-sync /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --testsuite integration'"
+		"coverage-ci": "@php ./vendor/bin/phpunit",
+		"cs": "@php ./vendor/bin/phpcs -q",
+		"cs-fix": "@php ./vendor/bin/phpcbf -q",
+		"i18n": "@php wp i18n make-pot . ./languages/s3-media-sync.pot",
+		"lint": "@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git",
+		"lint-ci": "@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git --checkstyle",
+		"test": "@test:integration",
+		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/s3-media-sync ./vendor/bin/phpunit --testsuite integration",
+		"test:integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/s3-media-sync /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --testsuite integration'"
 	},
 	"scripts-descriptions": {
 		"coverage": "Run tests with code coverage reporting",
-		"cs": "Run PHP CodeSniffer to check code style",
-		"cbf": "Run PHP CodeSniffer to fix code style issues",
+		"coverage-ci": "Run tests with code coverage reporting and send results to stdout",
+		"cs": "Run PHP Code Sniffer",
+		"cs-fix": "Run PHP Code Sniffer and fix violations",
 		"i18n": "Generate a POT file for translation",
-		"lint": "Run PHP parallel lint to check for syntax errors",
-		"test": "Run all tests for the S3 Media Sync plugin.",
-		"test:integration": "Run integration tests via wp-env.",
-		"test:integration-ms": "Run integration tests in multisite mode via wp-env."
+		"lint": "Run PHP linting",
+		"lint-ci": "Run PHP linting and send results to stdout",
+		"test": "Run all tests",
+		"test:integration": "Run integration tests",
+		"test:integration-ms": "Run integration tests in multisite mode"
 	}
 }
