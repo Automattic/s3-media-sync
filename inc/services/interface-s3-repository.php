@@ -105,4 +105,13 @@ interface S3_Repository_Interface {
 	 * @return bool True if the bucket is accessible, false otherwise.
 	 */
 	public function head_bucket(): bool;
+
+	/**
+	 * Get the bucket configuration.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @return \S3_Media_Sync\Value_Objects\S3_Bucket The bucket configuration.
+	 */
+	public function get_bucket(): \S3_Media_Sync\Value_Objects\S3_Bucket;
 }

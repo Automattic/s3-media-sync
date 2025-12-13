@@ -1,5 +1,9 @@
 <?php
 
+use S3_Media_Sync\Services\S3_Repository;
+use S3_Media_Sync\Services\Verify_Service;
+use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\Verify_Result;
 use WP_CLI;
 use WP_CLI\Utils;
 use WP_CLI_Command;
@@ -392,184 +396,94 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	 *     $ wp s3-media verify --limit=50 --offset=200
 	 */
 	public function verify( $args, $assoc_args ) {
-		global $wpdb;
-		
-		// Parse arguments
-		$verify_size = isset( $assoc_args['verify-size'] ) ? filter_var( $assoc_args['verify-size'], FILTER_VALIDATE_BOOLEAN ) : true;
-		$verify_md5 = isset( $assoc_args['verify-md5'] ) ? filter_var( $assoc_args['verify-md5'], FILTER_VALIDATE_BOOLEAN ) : false;
-		$fix = isset( $assoc_args['fix'] ) ? filter_var( $assoc_args['fix'], FILTER_VALIDATE_BOOLEAN ) : false;
-		$limit = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
+		// Parse arguments.
+		$options = [
+			'verify_size' => isset( $assoc_args['verify-size'] ) ? filter_var( $assoc_args['verify-size'], FILTER_VALIDATE_BOOLEAN ) : true,
+			'verify_md5'  => isset( $assoc_args['verify-md5'] ) ? filter_var( $assoc_args['verify-md5'], FILTER_VALIDATE_BOOLEAN ) : false,
+		];
+		$fix    = isset( $assoc_args['fix'] ) ? filter_var( $assoc_args['fix'], FILTER_VALIDATE_BOOLEAN ) : false;
+		$limit  = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
 		$offset = isset( $assoc_args['offset'] ) ? absint( $assoc_args['offset'] ) : 0;
-		
-		// Get S3 client and bucket info
-		$s3 = $this->get_s3_media_sync();
-		$s3_client = $s3->get_s3_client();
-		$bucket = $s3->get_s3_bucket();
-		$bucket_parts = explode( '/', $bucket, 2 );
-		$bucket_name = $bucket_parts[0];
-		$prefix = isset( $bucket_parts[1] ) ? trailingslashit( $bucket_parts[1] ) : '';
-		
-		// Get uploads directory info
-		$uploads = wp_upload_dir();
-		$base_dir = $uploads['basedir'];
-		$base_url = $uploads['baseurl'];
-		
-		// Get a batch of attachments
-		$sql = $wpdb->prepare(
-			"SELECT ID, post_title FROM {$wpdb->posts}
-			WHERE post_type = 'attachment'
-			ORDER BY ID
-			LIMIT %d OFFSET %d",
-			$limit, $offset
-		);
-		
-		$attachments = $wpdb->get_results( $sql );
-		
-		if ( empty( $attachments ) ) {
+
+		// Get the verify service.
+		$service = $this->get_verify_service();
+
+		// Get attachment IDs to verify.
+		$attachment_ids = $service->get_attachment_ids( $limit, $offset );
+
+		if ( empty( $attachment_ids ) ) {
 			WP_CLI::warning( 'No attachments found.' );
 			return;
 		}
-		
-		// Initialize counters
-		$count_total = count( $attachments );
-		$count_missing = 0;
-		$count_size_mismatch = 0;
-		$count_md5_mismatch = 0;
-		$count_fixed = 0;
-		
-		// Set up progress bar
+
+		$count_total = count( $attachment_ids );
+
+		// Set up progress bar.
 		$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Verifying %d attachments', $count_total ), $count_total );
-		
-		// Track verification details
-		$verification_issues = array();
-		
-		foreach ( $attachments as $attachment ) {
-			$attachment_id = $attachment->ID;
-			$attachment_url = wp_get_attachment_url( $attachment_id );
-			
-			if ( empty( $attachment_url ) ) {
-				$progress->tick();
-				continue;
-			}
-			
-			// Get file path information
-			$relative_url_path = str_replace( $base_url, '', $attachment_url );
-			$local_file_path = $base_dir . $relative_url_path;
-			$s3_key = 'wp-content/uploads' . $relative_url_path;
-			
-			// Skip if local file doesn't exist
-			if ( ! file_exists( $local_file_path ) ) {
-				$progress->tick();
-				continue;
-			}
-			
-			// Get local file information
-			$local_size = filesize( $local_file_path );
-			$local_md5 = $verify_md5 ? md5_file( $local_file_path ) : '';
-			
-			// Check if file exists in S3
-			$s3_exists = false;
-			$s3_size = 0;
-			$s3_etag = '';
-			$issue_type = '';
-			$is_fixed = false;
-			
-			try {
-				$s3_object = $s3_client->headObject([
-					'Bucket' => $bucket_name,
-					'Key' => $prefix . $s3_key,
-				]);
-				
-				$s3_exists = true;
-				$s3_size = isset( $s3_object['ContentLength'] ) ? $s3_object['ContentLength'] : 0;
-				$s3_etag = isset( $s3_object['ETag'] ) ? trim( $s3_object['ETag'], '"' ) : '';
-				
-				// Check size if requested
-				if ( $verify_size && $s3_size != $local_size ) {
-					$issue_type = 'Size mismatch';
-					$count_size_mismatch++;
-					
-					if ( $fix ) {
-						$is_fixed = $this->upload_file_to_s3( $s3_client, $bucket_name, $prefix . $s3_key, $local_file_path );
-						if ( $is_fixed ) {
-							$count_fixed++;
-						}
-					}
-				}
-				// Check MD5 if requested and there's no size mismatch
-				elseif ( $verify_md5 && empty( $issue_type ) ) {
-					// S3 ETags are MD5 hashes for non-multipart uploads
-					if ( $s3_etag !== $local_md5 ) {
-						$issue_type = 'MD5 mismatch';
-						$count_md5_mismatch++;
 
-						if ( $fix ) {
-							$is_fixed = $this->upload_file_to_s3( $s3_client, $bucket_name, $prefix . $s3_key, $local_file_path );
-							if ( $is_fixed ) {
-								$count_fixed++;
-							}
-						}
-					}
-				}
+		// Verify attachments.
+		$results = $service->verify_batch(
+			$attachment_ids,
+			$options,
+			static fn() => $progress->tick()
+		);
 
-			} catch ( \Exception $e ) {
-				// File doesn't exist on S3
-				$s3_exists = false;
-				$issue_type = 'Missing on S3';
-				$count_missing++;
-
-				if ( $fix ) {
-					$is_fixed = $this->upload_file_to_s3( $s3_client, $bucket_name, $prefix . $s3_key, $local_file_path );
-					if ( $is_fixed ) {
-						$count_fixed++;
-					}
-				}
-			}
-			
-			// Record verification issues
-			if ( ! empty( $issue_type ) ) {
-				$verification_issues[] = array(
-					'ID' => $attachment_id,
-					'Title' => $attachment->post_title,
-					'Issue' => $issue_type,
-					'Local Size' => size_format( $local_size, 2 ),
-					'S3 Size' => $s3_exists ? size_format( $s3_size, 2 ) : 'N/A',
-					'Fixed' => $is_fixed ? 'Yes' : 'No',
-				);
-			}
-			
-			$progress->tick();
-		}
-		
 		$progress->finish();
-		
-		// Report results
+
+		// Fix issues if requested.
+		if ( $fix ) {
+			$results = array_map(
+				fn( Verify_Result $result ) => $result->has_issue() ? $service->fix( $result ) : $result,
+				$results
+			);
+		}
+
+		// Get summary and issues.
+		$summary = $service->get_summary( $results );
+		$issues  = $service->filter_issues( $results );
+
+		// Report results.
+		$this->render_verify_results( $summary, $issues, $options, $fix );
+	}
+
+	/**
+	 * Render verification results to the console.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @param array           $summary Summary statistics.
+	 * @param Verify_Result[] $issues  Results with issues.
+	 * @param array           $options Verification options.
+	 * @param bool            $fix     Whether fix mode was enabled.
+	 */
+	private function render_verify_results( array $summary, array $issues, array $options, bool $fix ): void {
 		WP_CLI::line( '' );
 		WP_CLI::line( 'Verification Results:' );
-		WP_CLI::line( sprintf( 'Total attachments: %d', $count_total ) );
-		WP_CLI::line( sprintf( 'Missing on S3: %d', $count_missing ) );
-		WP_CLI::line( sprintf( 'Size mismatches: %d', $count_size_mismatch ) );
-		
-		if ( $verify_md5 ) {
-			WP_CLI::line( sprintf( 'MD5 mismatches: %d', $count_md5_mismatch ) );
+		WP_CLI::line( sprintf( 'Total attachments: %d', $summary['total'] ) );
+		WP_CLI::line( sprintf( 'Missing on S3: %d', $summary['missing'] ) );
+		WP_CLI::line( sprintf( 'Size mismatches: %d', $summary['size_mismatch'] ) );
+
+		if ( $options['verify_md5'] ) {
+			WP_CLI::line( sprintf( 'MD5 mismatches: %d', $summary['md5_mismatch'] ) );
 		}
-		
+
 		if ( $fix ) {
-			WP_CLI::line( sprintf( 'Issues fixed: %d', $count_fixed ) );
+			WP_CLI::line( sprintf( 'Issues fixed: %d', $summary['fixed'] ) );
 		}
-		
-		// Display issues in a table
-		if ( ! empty( $verification_issues ) ) {
+
+		// Display issues in a table.
+		if ( ! empty( $issues ) ) {
 			WP_CLI::line( '' );
 			WP_CLI::line( 'Issues found:' );
-			
-			$table_fields = array( 'ID', 'Title', 'Issue', 'Local Size', 'S3 Size' );
-			
+
+			$table_data   = array_map( fn( Verify_Result $r ) => $r->to_table_row( $fix ), $issues );
+			$table_fields = [ 'ID', 'Title', 'Issue', 'Local Size', 'S3 Size' ];
+
 			if ( $fix ) {
 				$table_fields[] = 'Fixed';
 			}
-			
-			WP_CLI\Utils\format_items( 'table', $verification_issues, $table_fields );
+
+			WP_CLI\Utils\format_items( 'table', $table_data, $table_fields );
 		} else {
 			WP_CLI::success( 'All verified files are in sync with S3.' );
 		}
@@ -974,6 +888,22 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 		$s3_media_sync    = new S3_Media_Sync( $settings_handler );
 		$s3_media_sync->setup();
 		return $s3_media_sync;
+	}
+
+	/**
+	 * Get the Verify Service instance.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @return Verify_Service
+	 */
+	private function get_verify_service(): Verify_Service {
+		$s3              = $this->get_s3_media_sync();
+		$settings        = $s3->get_settings_handler()->get_settings();
+		$bucket          = S3_Bucket::from_settings( $settings );
+		$repository      = new S3_Repository( $s3->get_s3_client(), $bucket );
+
+		return new Verify_Service( $repository );
 	}
 
 	/**
