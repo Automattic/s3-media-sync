@@ -42,6 +42,17 @@ class S3_Media_Sync {
 	}
 
 	/**
+	 * Get the S3 client instance.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @return \Aws\S3\S3Client|null The S3 client, or null if not initialized.
+	 */
+	public function get_s3_client() {
+		return $this->s3_client;
+	}
+
+	/**
 	 * Setup for the plugin
 	 */
 	public function setup() {
@@ -60,8 +71,8 @@ class S3_Media_Sync {
 		try {
 			// Register and configure the stream wrapper
 			$factory = $this->get_client_factory();
-			$s3_client = $factory->create($this->settings);
-			$factory->configure_stream_wrapper($s3_client, $this->bucket);
+			$this->s3_client = $factory->create($this->settings);
+			$factory->configure_stream_wrapper($this->s3_client, $this->bucket);
 
 			// Hook into WordPress media handling
 			// These hooks match the original plugin behavior and test expectations
@@ -308,6 +319,30 @@ class S3_Media_Sync {
 			// Ensure we have a fresh S3 client
 			$factory = $this->get_client_factory();
 			$s3_client = $factory->create($this->settings);
+			
+			// Check if bucket allows ACLs BEFORE configuring stream wrapper
+			if (isset($this->settings['use_acl']) && $this->settings['use_acl']) {
+				try {
+					$result = $s3_client->getBucketOwnershipControls([
+						'Bucket' => $this->settings['bucket']
+					]);
+					
+					if (isset($result['OwnershipControls']['Rules'][0]['ObjectOwnership']) && 
+						$result['OwnershipControls']['Rules'][0]['ObjectOwnership'] === 'BucketOwnerEnforced') {
+						// Bucket doesn't allow ACLs - update settings
+						error_log('S3 Media Sync: Bucket does not allow ACLs - disabling ACL setting');
+						$this->settings['use_acl'] = false;
+						update_option('s3_media_sync_settings', $this->settings);
+					}
+				} catch (\Exception $e) {
+					error_log('S3 Media Sync: Could not determine bucket ACL settings: ' . $e->getMessage());
+					// If we can't check, disable ACLs to be safe
+					$this->settings['use_acl'] = false;
+					update_option('s3_media_sync_settings', $this->settings);
+				}
+			}
+			
+			// Now configure stream wrapper with updated settings
 			$factory->configure_stream_wrapper($s3_client, $this->bucket);
 			
 			$wp_uploads = wp_upload_dir();
