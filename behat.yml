@@ -1,0 +1,9 @@
+default:
+  suites:
+    default:
+      paths:
+        - "%paths.base%/features"
+      contexts:
+        - S3_Media_Sync\Tests\Behat\FeatureContext
+  formatters:
+    progress: true
