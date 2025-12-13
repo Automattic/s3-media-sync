@@ -3,9 +3,12 @@
 use S3_Media_Sync\Services\Cleanup_Service;
 use S3_Media_Sync\Services\S3_Repository;
 use S3_Media_Sync\Services\Status_Service;
+use S3_Media_Sync\Services\Sync_Service;
 use S3_Media_Sync\Services\Verify_Service;
 use S3_Media_Sync\Value_Objects\S3_Bucket;
+use S3_Media_Sync\Value_Objects\Sync_Result;
 use S3_Media_Sync\Value_Objects\Verify_Result;
+use S3_Media_Sync\Value_Objects\WordPress_Attachment;
 use WP_CLI;
 use WP_CLI\Utils;
 use WP_CLI_Command;
@@ -31,72 +34,66 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	/**
 	 * Upload a single attachment to S3
 	 *
-	 * @synopsis <attachment_id>
+	 * @synopsis <attachment_id> [--no-thumbnails]
 	 *
 	 * ## OPTIONS
 	 *
 	 * <attachment_id>
 	 * : The ID of the attachment to upload to S3.
 	 *
+	 * [--no-thumbnails]
+	 * : Skip uploading thumbnail images.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     # Upload an attachment with ID 123 to S3.
 	 *     $ wp s3-media upload 123
+	 *
+	 *     # Upload only the main file without thumbnails.
+	 *     $ wp s3-media upload 123 --no-thumbnails
 	 */
 	public function upload( $args, $assoc_args ) {
-		// Get the source and destination and initialize some concurrency variables
-		$from	= wp_get_upload_dir();
-		$to	= $this->get_s3_media_sync()->get_s3_bucket_url();
-		
-		$attachment_id = absint( $args[0] );
-	
-		if ( $attachment_id === 0 ) {
+		$attachment_id      = absint( $args[0] );
+		$include_thumbnails = ! isset( $assoc_args['no-thumbnails'] );
+
+		if ( 0 === $attachment_id ) {
 			WP_CLI::error( 'Invalid attachment ID.' );
 		}
-	
-		$url = wp_get_attachment_url( $attachment_id );
-	
-		if ( false === $url || '' === $url ) {
-			WP_CLI::error( 'Failed to retrieve attachment URL for ID: ' . $attachment_id );
-		}
-	
-		// By switching the URLs from http:// to https:// we save a request, since it will be redirected to the SSL url
-		if ( is_ssl() ) {
-			$url = str_replace( 'http://', 'https://', $url );
-		}
-	
-		$ch = curl_init();
-		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-		curl_setopt( $ch, CURLOPT_URL, $url );
-		curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, true );
-		curl_setopt( $ch, CURLOPT_NOBODY, true );
-	
-		// Check for errors before setting options
-		if ( curl_errno( $ch ) ) {
-			WP_CLI::error( 'cURL error for attachment ID ' . $attachment_id . ': ' . curl_error( $ch ) );
-		}
-	
-		$response = curl_exec( $ch );
-		
-		// Check for errors after executing cURL request
-		if ( curl_errno( $ch ) ) {
-			WP_CLI::error( 'cURL error for attachment ID ' . $attachment_id . ': ' . curl_error( $ch ) );
-		}
-	
-		$response_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
-		curl_close( $ch );
-	
-		if ( 200 === $response_code ) {
-			// Process the response and upload the attachment to S3
-			$path = str_replace( $from['baseurl'], '', $url );
 
-			// Check if the file exists before copying it over
-			if ( ! is_file( trailingslashit( $to ) . 'wp-content/uploads' . $path ) ) {
-				copy( $from['basedir'] . $path, trailingslashit( $to ) . 'wp-content/uploads' . $path );
-			}
-			WP_CLI::success( 'Attachment ID ' . $attachment_id . ' successfully uploaded to S3.' );
+		try {
+			$attachment = WordPress_Attachment::from_post_id( $attachment_id );
+		} catch ( \InvalidArgumentException $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		$service = $this->get_sync_service();
+		$result  = $service->upload_attachment( $attachment, $include_thumbnails );
+
+		if ( $result->is_success() ) {
+			WP_CLI::success(
+				sprintf(
+					'Attachment ID %d successfully uploaded to S3 (%d files).',
+					$attachment_id,
+					$result->get_files_synced()
+				) 
+			);
+		} elseif ( $result->is_partial() ) {
+			WP_CLI::warning(
+				sprintf(
+					'Attachment ID %d partially uploaded: %d/%d files succeeded.',
+					$attachment_id,
+					$result->get_files_synced(),
+					$result->get_total_files()
+				) 
+			);
 		} else {
-			WP_CLI::error( 'Failed to fetch attachment from URL for attachment ID ' . $attachment_id . ': ' . $url );
+			WP_CLI::error(
+				sprintf(
+					'Failed to upload attachment ID %d: %s',
+					$attachment_id,
+					$result->get_error()
+				) 
+			);
 		}
 	}
 	
@@ -107,103 +104,74 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * [--threads=<number>]
-	 * : The number of concurrent threads to use for uploading. Defaults to 10.
-	 * ---
-	 * default: 10
-	 * options:
-	 *   - 1-10
-	 * ---
+	 * [--no-thumbnails]
+	 * : Skip uploading thumbnail images.
+	 *
+	 * [--limit=<number>]
+	 * : Maximum number of attachments to upload. Default: all.
+	 *
+	 * [--offset=<number>]
+	 * : Number of attachments to skip before starting. Default: 0.
+	 *
+	 * [--batch-size=<number>]
+	 * : Number of attachments to process per batch. Default: 100.
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     # Upload all media to S3 using the default number of threads.
+	 *     # Upload all media to S3.
 	 *     $ wp s3-media upload-all
 	 *
-	 *     # Upload all media to S3 using 5 threads.
-	 *     $ wp s3-media upload-all --threads=5
+	 *     # Upload first 500 attachments, skipping first 100.
+	 *     $ wp s3-media upload-all --limit=500 --offset=100
 	 */
 	public function upload_all( $args, $assoc_args ) {
-		global $wpdb;
+		$include_thumbnails = ! isset( $assoc_args['no-thumbnails'] );
+		$limit              = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 0;
+		$offset             = isset( $assoc_args['offset'] ) ? absint( $assoc_args['offset'] ) : 0;
+		$batch_size         = isset( $assoc_args['batch-size'] ) ? absint( $assoc_args['batch-size'] ) : 100;
 
-		// Get the source and destination and initialize some concurrency variables
-		$from    = wp_get_upload_dir();
-		$to      = $this->get_s3_media_sync()->get_s3_bucket_url();
-		$offset  = 0;
-		$threads = 10;
-		$limit   = 500;
+		$service    = $this->get_sync_service();
+		$total      = $service->count_attachments();
+		$to_process = 0 === $limit ? $total - $offset : min( $limit, $total - $offset );
 
-		// Let's see how many attachments we'll be working through
-		$count_sql        = 'SELECT COUNT(*) FROM ' . $wpdb->posts . ' WHERE post_type = "attachment"';
-		$attachment_count = $wpdb->get_row( $count_sql, ARRAY_N )[0];
-		$progress         = \WP_CLI\Utils\make_progress_bar( 'Uploading ' . number_format( $attachment_count ) . ' attachments', $attachment_count );
+		if ( $to_process <= 0 ) {
+			WP_CLI::warning( 'No attachments to upload.' );
+			return;
+		}
 
-		do {
-			// Grab a chunk of attachments to work through
-			$sql         = $wpdb->prepare( 'SELECT ID FROM ' . $wpdb->posts . ' WHERE post_type = "attachment" LIMIT %d,%d', $offset, $limit );
-			$attachments = $wpdb->get_results( $sql );
+		WP_CLI::line( sprintf( 'Uploading %s attachments to S3...', number_format( $to_process ) ) );
 
-			// Break the attachments into groups of maxiumum 10 elements
-			$attachments_arrays = array_chunk( $attachments, $threads );
-			$mh                 = curl_multi_init();
+		$progress    = Utils\make_progress_bar( 'Uploading', $to_process );
+		$all_results = array();
+		$processed   = 0;
 
-			// Loop through each block of 10 attachments
-			foreach ( $attachments_arrays as $attachments_array ) {
-				$ch    = array();
-				$index = 0;
+		while ( $processed < $to_process ) {
+			$current_batch_size = min( $batch_size, $to_process - $processed );
+			$attachment_ids     = $service->get_attachment_ids( $current_batch_size, $offset + $processed );
 
-				foreach ( $attachments_array as $attachment ) {
-					$url = wp_get_attachment_url( $attachment->ID );
-
-					// By switching the URLs from http:// to https:// we save a request, since it will be redirected to the SSL url
-					if ( is_ssl() ) {
-						$url = str_replace( 'http://', 'https://', $url );
-					}
-
-					$ch[ $index ] = curl_init();
-					curl_setopt( $ch[ $index ], CURLOPT_RETURNTRANSFER, true );
-					curl_setopt( $ch[ $index ], CURLOPT_URL, $url );
-					curl_setopt( $ch[ $index ], CURLOPT_FOLLOWLOCATION, true );
-					curl_setopt( $ch[ $index ], CURLOPT_NOBODY, true );
-					curl_multi_add_handle( $mh, $ch[ $index ] );
-					$index++;
-				}
-
-				// Exec the cURL requests
-				$curl_active = null;
-
-				do {
-					$mrc = curl_multi_exec( $mh, $curl_active );
-				} while ( $curl_active > 0 );
-
-				// Process the responses
-				foreach ( $ch as $index => $handle ) {
-					$response_code = curl_getinfo( $handle, CURLINFO_HTTP_CODE );
-					$url           = curl_getinfo( $handle, CURLINFO_EFFECTIVE_URL );
-
-					if ( 200 === $response_code ) {
-						$path = str_replace( $from['baseurl'], '', $url );
-
-						// Check if file exists before copying it over
-						if ( ! is_file( trailingslashit( $to ) . 'wp-content/uploads' . $path ) ) {
-							copy( $from['basedir'] . $path, trailingslashit( $to ) . 'wp-content/uploads' . $path );
-						}
-					}
-
-					curl_multi_remove_handle( $mh, $handle );
-					$progress->tick();
-				}
+			if ( empty( $attachment_ids ) ) {
+				break;
 			}
-			// Pause and clear caches to free up memory
+
+			$results = $service->upload_batch(
+				$attachment_ids,
+				$include_thumbnails,
+				static fn() => $progress->tick()
+			);
+
+			$all_results = array_merge( $all_results, $results );
+			$processed  += count( $attachment_ids );
+
+			// Clear caches to free memory.
 			$this->reset_local_object_cache();
 			$this->reset_db_query_log();
-			sleep( 1 );
-			$offset += $limit;
-		} while ( count( $attachments ) );
+		}
 
 		$progress->finish();
 
-		WP_CLI::success( sprintf( 'Successfully uploaded media to %s', $to ) );
+		// Display summary.
+		$summary = $service->get_summary( $all_results );
+		$this->render_sync_summary( $summary );
 	}
 
 	/**
@@ -251,7 +219,7 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 				'',
 				array(
 					'before_delete',
-					function() {
+					function () {
 						WP_CLI::line( sprintf( 'Deleting file' ) );
 					},
 				)
@@ -353,13 +321,13 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	 */
 	public function verify( $args, $assoc_args ) {
 		// Parse arguments.
-		$options = [
+		$options = array(
 			'verify_size' => isset( $assoc_args['verify-size'] ) ? filter_var( $assoc_args['verify-size'], FILTER_VALIDATE_BOOLEAN ) : true,
 			'verify_md5'  => isset( $assoc_args['verify-md5'] ) ? filter_var( $assoc_args['verify-md5'], FILTER_VALIDATE_BOOLEAN ) : false,
-		];
-		$fix    = isset( $assoc_args['fix'] ) ? filter_var( $assoc_args['fix'], FILTER_VALIDATE_BOOLEAN ) : false;
-		$limit  = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
-		$offset = isset( $assoc_args['offset'] ) ? absint( $assoc_args['offset'] ) : 0;
+		);
+		$fix     = isset( $assoc_args['fix'] ) ? filter_var( $assoc_args['fix'], FILTER_VALIDATE_BOOLEAN ) : false;
+		$limit   = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
+		$offset  = isset( $assoc_args['offset'] ) ? absint( $assoc_args['offset'] ) : 0;
 
 		// Get the verify service.
 		$service = $this->get_verify_service();
@@ -433,7 +401,7 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 			WP_CLI::line( 'Issues found:' );
 
 			$table_data   = array_map( fn( Verify_Result $r ) => $r->to_table_row( $fix ), $issues );
-			$table_fields = [ 'ID', 'Title', 'Issue', 'Local Size', 'S3 Size' ];
+			$table_fields = array( 'ID', 'Title', 'Issue', 'Local Size', 'S3 Size' );
 
 			if ( $fix ) {
 				$table_fields[] = 'Fixed';
@@ -547,15 +515,15 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 			return;
 		}
 
-		$properties = [
+		$properties = array(
 			'group_ops',
 			'memcache_debug',
 			'cache',
-		];
+		);
 
 		foreach ( $properties as $property ) {
 			if ( property_exists( $wp_object_cache, $property ) ) {
-				$wp_object_cache->$property = [];
+				$wp_object_cache->$property = array();
 			}
 		}
 
@@ -595,10 +563,10 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	 * @return Verify_Service
 	 */
 	private function get_verify_service(): Verify_Service {
-		$s3              = $this->get_s3_media_sync();
-		$settings        = $s3->get_settings_handler()->get_settings();
-		$bucket          = S3_Bucket::from_settings( $settings );
-		$repository      = new S3_Repository( $s3->get_s3_client(), $bucket );
+		$s3         = $this->get_s3_media_sync();
+		$settings   = $s3->get_settings_handler()->get_settings();
+		$bucket     = S3_Bucket::from_settings( $settings );
+		$repository = new S3_Repository( $s3->get_s3_client(), $bucket );
 
 		return new Verify_Service( $repository );
 	}
@@ -636,6 +604,46 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 	}
 
 	/**
+	 * Get the Sync Service instance.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @return Sync_Service
+	 */
+	private function get_sync_service(): Sync_Service {
+		$s3         = $this->get_s3_media_sync();
+		$settings   = $s3->get_settings_handler()->get_settings();
+		$bucket     = S3_Bucket::from_settings( $settings );
+		$repository = new S3_Repository( $s3->get_s3_client(), $bucket );
+
+		return new Sync_Service( $repository );
+	}
+
+	/**
+	 * Render sync operation summary.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @param array $summary Summary statistics from get_summary().
+	 */
+	private function render_sync_summary( array $summary ): void {
+		WP_CLI::line( '' );
+		WP_CLI::line( 'Sync Summary:' );
+		WP_CLI::line( sprintf( '- Total attachments: %d', $summary['total'] ) );
+		WP_CLI::line( sprintf( '- Successful: %d', $summary['success'] ) );
+		WP_CLI::line( sprintf( '- Failed: %d', $summary['failed'] ) );
+		WP_CLI::line( sprintf( '- Skipped: %d', $summary['skipped'] ) );
+		WP_CLI::line( sprintf( '- Files synced: %d', $summary['files_synced'] ) );
+		WP_CLI::line( sprintf( '- Files failed: %d', $summary['files_failed'] ) );
+
+		if ( $summary['failed'] > 0 ) {
+			WP_CLI::warning( sprintf( '%d attachments failed to sync.', $summary['failed'] ) );
+		} elseif ( $summary['success'] > 0 ) {
+			WP_CLI::success( 'All attachments successfully uploaded to S3.' );
+		}
+	}
+
+	/**
 	 * Upload a file to S3 with proper ACL handling.
 	 *
 	 * @since 2.0.0
@@ -650,11 +658,11 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 		$settings_handler = new S3_Media_Sync_Settings();
 		$settings         = $settings_handler->get_settings();
 
-		$params = [
+		$params = array(
 			'Bucket'     => $bucket_name,
 			'Key'        => $key,
 			'SourceFile' => $source_file,
-		];
+		);
 
 		// Only add ACL if the setting is enabled
 		if ( isset( $settings['use_acl'] ) && $settings['use_acl'] ) {
@@ -669,5 +677,4 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 			return false;
 		}
 	}
-
 }
