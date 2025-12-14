@@ -26,7 +26,6 @@
 		<exclude>
 			<directory>vendor</directory>
 			<directory>tests</directory>
-			<file>inc/class-s3-media-sync-wp-cli.php</file>
 		</exclude>
 		<report>
 			<clover outputFile="build/logs/clover.xml"/>

@@ -31,9 +31,6 @@
 	"autoload": {
 		"classmap": [
 			"inc/"
-		],
-		"exclude-from-classmap": [
-			"inc/class-s3-media-sync-wp-cli.php"
 		]
 	},
 	"autoload-dev": {
