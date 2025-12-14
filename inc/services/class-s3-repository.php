@@ -363,4 +363,33 @@ class S3_Repository implements S3_Repository_Interface {
 	private function is_acl_not_supported_error( S3Exception $e ): bool {
 		return strpos( $e->getMessage(), 'AccessControlListNotSupported' ) !== false;
 	}
+
+	/**
+	 * Delete all files matching a prefix.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @param string        $prefix   The prefix to match files against.
+	 * @param string        $regex    Optional regex pattern to filter files.
+	 * @param callable|null $progress Optional callback called before each delete.
+	 * @return int Number of files deleted.
+	 */
+	public function delete_by_prefix( string $prefix, string $regex = '', ?callable $progress = null ): int {
+		$full_prefix = $this->bucket->get_full_path( $prefix );
+
+		try {
+			$deleted = $this->client->deleteMatchingObjects(
+				$this->bucket->get_name(),
+				$full_prefix,
+				$regex,
+				[
+					'before' => $progress,
+				]
+			);
+
+			return $deleted;
+		} catch ( S3Exception $e ) {
+			throw new \RuntimeException( $e->getMessage(), (int) $e->getCode(), $e );
+		}
+	}
 }

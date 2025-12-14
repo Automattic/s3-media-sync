@@ -114,4 +114,16 @@ interface S3_Repository_Interface {
 	 * @return \S3_Media_Sync\Value_Objects\S3_Bucket The bucket configuration.
 	 */
 	public function get_bucket(): \S3_Media_Sync\Value_Objects\S3_Bucket;
+
+	/**
+	 * Delete all files matching a prefix.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @param string        $prefix   The prefix to match files against.
+	 * @param string        $regex    Optional regex pattern to filter files.
+	 * @param callable|null $progress Optional callback called before each delete.
+	 * @return int Number of files deleted.
+	 */
+	public function delete_by_prefix( string $prefix, string $regex = '', ?callable $progress = null ): int;
 }
