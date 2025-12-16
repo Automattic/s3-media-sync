@@ -1,5 +1,14 @@
 # S3 Media Sync
 
+Stable tag: 1.4.1
+Requires at least: 6.4
+Tested up to: 6.9
+Requires PHP: 8.1
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Tags: s3, aws, media, sync, cloud storage
+Contributors: alexiskulash, automattic, wpcomvip
+
 A WordPress plugin that syncs media uploads to Amazon S3, providing reliable cloud storage for your WordPress media library.
 
 ## Overview
