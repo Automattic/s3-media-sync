@@ -35,37 +35,21 @@ jobs:
   integration-tests:
     name: WP ${{ matrix.wordpress }} on PHP ${{ matrix.php }}${{ matrix.multisite && ' (MS)' || '' }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.allowed_failure }}
     timeout-minutes: 20
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Check lowest supported WP version with lowest supported PHP.
+          # Check lowest supported WP version, with the lowest supported PHP.
           - wordpress: '6.4'
             php: '8.1'
-            multisite: false
-            allowed_failure: false
-          # Check latest WP with the highest supported PHP.
-          - wordpress: '6.9'
-            php: '8.4'
-            multisite: false
-            allowed_failure: false
-          # Check latest WP multisite.
-          - wordpress: '6.9'
-            php: '8.4'
-            multisite: true
-            allowed_failure: false
-          # Check upcoming WP.
+          # Check latest WP with the latest PHP.
           - wordpress: 'master'
-            php: '8.4'
-            multisite: false
-            allowed_failure: true
+            php: 'latest'
 
     env:
-      WP_ENV_PHP_VERSION: ${{ matrix.php }}
-      WP_ENV_CORE: ${{ matrix.wordpress == 'master' && 'WordPress/WordPress#master' || format('https://wordpress.org/wordpress-{0}.zip', matrix.wordpress) }}
+      WP_ENV_CORE: WordPress/WordPress#${{ matrix.wordpress }}
 
     steps:
       - name: Checkout code
