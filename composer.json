@@ -53,8 +53,8 @@
 			"@putenv XDEBUG_MODE=coverage",
 			"./vendor/bin/phpunit --testsuite integration --coverage-text --coverage-html build/coverage"
 		],
-		"cs": "phpcs",
-		"cbf": "phpcbf",
+		"cs": "@php ./vendor/bin/phpcs",
+		"cs-fix": "@php ./vendor/bin/phpcbf",
 		"i18n": [
 			"@php wp i18n make-pot . ./languages/s3-media-sync.pot"
 		],
@@ -68,7 +68,7 @@
 	"scripts-descriptions": {
 		"coverage": "Run tests with code coverage reporting",
 		"cs": "Run PHP CodeSniffer to check code style",
-		"cbf": "Run PHP CodeSniffer to fix code style issues",
+		"cs-fix": "Run PHP Code Beautifier to auto-fix code style issues",
 		"i18n": "Generate a POT file for translation",
 		"lint": "Run PHP parallel lint to check for syntax errors",
 		"test": "Run all tests for the S3 Media Sync plugin.",
