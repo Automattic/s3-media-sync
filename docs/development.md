@@ -47,11 +47,11 @@ composer test
 This plugin follows the WordPress coding standards. To check your code for standards compliance, run:
 
 ```sh
-composer phpcs
+composer cs
 ```
 
 To automatically fix many common coding standards issues:
 
 ```sh
-composer phpcbf
+composer cs-fix
 ``` 
