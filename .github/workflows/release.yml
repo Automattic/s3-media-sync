@@ -49,7 +49,7 @@ jobs:
           tools: composer
 
       - name: Install production Composer dependencies
-        run: composer install --no-dev --prefer-dist --no-progress --optimize-autoloader
+        run: composer install --no-dev --no-audit --prefer-dist --no-progress --optimize-autoloader
 
       - name: Extract changelog for release notes
         if: github.event_name == 'push'
