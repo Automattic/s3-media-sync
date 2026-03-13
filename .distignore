@@ -1,0 +1,48 @@
+# Version control
+/.git
+/.github/
+
+# This file
+/.distignore
+
+# Development configuration
+/.claude/
+/.context/
+/.editorconfig
+/.gitignore
+/.phpcs.xml.dist
+/.wp-env.json
+/.wp-env.override.json
+
+# Development dependencies and tools
+/node_modules/
+/package.json
+/package-lock.json
+/composer.json
+/composer.lock
+/phpunit.xml.dist
+
+# Tests
+/tests/
+
+# Build artifacts
+/build/
+/dist/
+/coverage/
+/.phpunit.cache/
+/.phpunit.result.cache
+
+# Documentation (not needed in distribution)
+/docs/
+/AGENTS.md
+/CHANGELOG.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+/.idea/
+/.vscode/
+*.sublime-project
+*.sublime-workspace

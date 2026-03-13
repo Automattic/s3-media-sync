@@ -1,0 +1,121 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and release (e.g. 1.4.1)'
+        required: true
+        type: string
+
+# Disable all permissions by default; grant minimal permissions per job
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Required to create releases and upload assets
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.tag.outputs.version }}
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # v2.34.0
+        with:
+          php-version: '8.1'
+          tools: composer
+
+      - name: Install production Composer dependencies
+        run: composer install --no-dev --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Extract changelog for release notes
+        if: github.event_name == 'push'
+        id: changelog
+        run: |
+          TAG="${{ steps.tag.outputs.version }}"
+
+          # Extract the section for this version from CHANGELOG.md
+          # Matches from "## [<tag>]" until the next "## " heading or end of file
+          NOTES=$(sed -n "/^## \[${TAG}\]/,/^## /{/^## \[${TAG}\]/d;/^## /d;p;}" CHANGELOG.md)
+
+          # Drop heading levels by one (### becomes ##, #### becomes ###)
+          NOTES=$(echo "$NOTES" | sed 's/^####/###/;s/^###/##/')
+
+          # Trim leading/trailing blank lines
+          NOTES=$(echo "$NOTES" | sed '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+
+          # Write to file for the release step (avoids delimiter issues)
+          echo "$NOTES" > /tmp/release-notes.md
+
+          # If no notes found, fall back to a simple message
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "Release ${TAG}" > /tmp/release-notes.md
+          fi
+
+      - name: Create distribution ZIP
+        run: |
+          PLUGIN_SLUG="${GITHUB_REPOSITORY#*/}"
+          mkdir -p "/tmp/${PLUGIN_SLUG}"
+
+          # Copy files, respecting .distignore if it exists
+          if [ -f ".distignore" ]; then
+            rsync -rc --exclude-from=".distignore" ./ "/tmp/${PLUGIN_SLUG}/"
+          else
+            rsync -rc --exclude='.git' --exclude='.github' --exclude='.distignore' \
+              --exclude='node_modules' --exclude='tests' --exclude='docs' \
+              --exclude='.phpcs.xml.dist' --exclude='phpunit.xml.dist' \
+              --exclude='.wp-env.json' --exclude='.editorconfig' --exclude='.gitignore' \
+              --exclude='package.json' --exclude='package-lock.json' \
+              --exclude='composer.json' --exclude='composer.lock' \
+              --exclude='AGENTS.md' --exclude='CHANGELOG.md' \
+              --exclude='.claude' --exclude='.context' \
+              ./ "/tmp/${PLUGIN_SLUG}/"
+          fi
+
+          # Create ZIP with the plugin directory as root
+          cd /tmp
+          zip -r "/tmp/${PLUGIN_SLUG}.zip" "${PLUGIN_SLUG}"
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          tag_name: ${{ steps.tag.outputs.version }}
+          name: ${{ steps.tag.outputs.version }}
+          body_path: /tmp/release-notes.md
+          files: /tmp/s3-media-sync.zip
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload ZIP to existing release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          tag_name: ${{ steps.tag.outputs.version }}
+          files: /tmp/s3-media-sync.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
