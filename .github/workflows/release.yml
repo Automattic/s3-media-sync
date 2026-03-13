@@ -50,6 +50,9 @@ jobs:
 
       - name: Install production Composer dependencies
         run: composer install --no-dev --prefer-dist --no-progress --optimize-autoloader
+        env:
+          COMPOSER_AUDIT_ABANDONED: ignore
+          COMPOSER_NO_AUDIT: 1
 
       - name: Extract changelog for release notes
         if: github.event_name == 'push'
