@@ -50,6 +50,10 @@ For full installation instructions, see the [Setup Guide](docs/setup.md).
 
 [View the change log](https://github.com/Automattic/s3-media-sync/blob/master/CHANGELOG.md).
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a development environment, run the checks, and open a pull request.
+
 ## Support
 
 For issues and feature requests, please [create an issue](https://github.com/Automattic/s3-media-sync/issues) on the GitHub repository.
