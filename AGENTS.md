@@ -58,7 +58,7 @@ composer i18n              # Generate translation files
 Follow the standards documented in `~/code/plugin-standards/` for full details. Key points:
 
 - **Commits**: Use the `/commit` skill. Favour explaining "why" over "what".
-- **PRs**: Use the `/pr` skill. Squash and merge by default.
+- **PRs**: Use the `/pr` skill. PRs land as merge commits (squash and rebase merging are disabled), and every commit must be signed.
 - **Branch naming**: `feature/description`, `fix/description` from `develop`.
 - **Testing**: This plugin only has integration tests (no unit tests). New tests should be integration tests unless adding pure logic that is independent of WordPress and AWS.
 - **Code style**: WordPress coding standards via PHPCS. Tabs for indentation.
