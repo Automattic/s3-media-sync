@@ -55,11 +55,10 @@ composer i18n              # Generate translation files
 
 ## Conventions
 
-Follow the standards documented in `~/code/plugin-standards/` for full details. Key points:
+See `CONTRIBUTING.md` for setup, checks and the contribution workflow. Key points:
 
-- **Commits**: Use the `/commit` skill. Favour explaining "why" over "what".
-- **PRs**: Use the `/pr` skill. PRs land as merge commits (squash and rebase merging are disabled), and every commit must be signed.
-- **Branch naming**: `feature/description`, `fix/description` from `develop`.
+- **Commits**: Every commit must be signed; `develop` and `main` reject unsigned commits. Use a [Conventional Commits](https://www.conventionalcommits.org/) prefix (`fix:`, `feat:`, `test:`, `docs:`, `ci:`, `chore:` and so on) with an imperative subject of about 50 characters, and a body that explains why the change was needed rather than what changed. One concern per commit.
+- **PRs**: Open against `develop`. The title describes the outcome in sentence case, without a conventional commit prefix. The description explains the problem first, then how the PR solves it. PRs land as merge commits (squash and rebase merging are disabled), so every commit message reaches `develop` as written.
 - **Testing**: This plugin only has integration tests (no unit tests). New tests should be integration tests unless adding pure logic that is independent of WordPress and AWS.
 - **Code style**: WordPress coding standards via PHPCS. Tabs for indentation.
 - **i18n**: All user-facing strings must use the `s3-media-sync` text domain.
