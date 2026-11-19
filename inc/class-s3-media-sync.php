@@ -6,6 +6,7 @@ use S3_Media_Sync\Value_Objects\Local_File;
 use S3_Media_Sync\Value_Objects\S3_File;
 use S3_Media_Sync\Value_Objects\File_Comparison;
 use Aws\S3\Exception\S3Exception;
+use S3_Media_Sync\Exceptions\Invalid_Bucket_Exception;
 
 class S3_Media_Sync {
 	private $settings;
@@ -21,7 +22,14 @@ class S3_Media_Sync {
 	public function __construct( S3_Media_Sync_Settings $settings_handler ) {
 		$this->settings_handler = $settings_handler;
 		$this->settings        = $this->settings_handler->get_settings();
-		$this->bucket         = S3_Bucket::from_settings($this->settings);
+
+		// Until a valid bucket is saved, the plugin has nothing to sync to, but it
+		// must still load so the settings page can be used to save one.
+		try {
+			$this->bucket = S3_Bucket::from_settings( $this->settings );
+		} catch ( Invalid_Bucket_Exception $e ) {
+			$this->bucket = null;
+		}
 	}
 
 	/**
@@ -63,7 +71,7 @@ class S3_Media_Sync {
 		$this->settings_handler->init();
 
 		// Only proceed with stream wrapper and hooks if we have all required settings
-		if (!$this->settings_handler->has_required_settings()) {
+		if ( null === $this->bucket || ! $this->settings_handler->has_required_settings() ) {
 			// error_log('S3 Media Sync: Required settings missing - hooks not registered');
 			return;
 		}
