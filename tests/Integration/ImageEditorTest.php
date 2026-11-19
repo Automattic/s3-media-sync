@@ -322,7 +322,6 @@ class ImageEditorTest extends TestCase {
 		ob_start();
 		imagejpeg($image);
 		$contents = ob_get_clean();
-		imagedestroy($image);
 		return $contents;
 	}
 

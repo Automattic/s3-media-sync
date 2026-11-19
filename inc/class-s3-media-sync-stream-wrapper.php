@@ -99,14 +99,14 @@ class S3_Media_Sync_Stream_Wrapper {
 	/**
 	 * Register the 's3://' stream wrapper
 	 *
-	 * @param S3ClientInterface $client   Client to use with the stream wrapper
-	 * @param string            $protocol Protocol to register as.
-	 * @param CacheInterface    $cache    Default cache for the protocol.
+	 * @param S3ClientInterface   $client   Client to use with the stream wrapper
+	 * @param string              $protocol Protocol to register as.
+	 * @param CacheInterface|null $cache    Default cache for the protocol.
 	 */
 	public static function register(
 		S3ClientInterface $client,
 		$protocol = 's3',
-		CacheInterface $cache = null
+		?CacheInterface $cache = null
 	) {
 		if ( in_array( $protocol, stream_get_wrappers() ) ) {
 			stream_wrapper_unregister( $protocol );
