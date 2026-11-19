@@ -450,7 +450,8 @@ class S3_Media_Sync_Tester {
             $error_type = "region";
             $error_message = str_replace("REGION_ERROR: ", "", $error_message);
             $simple_message = sprintf(
-                __('The region "%s" (%s) appears to be invalid. Please verify your region setting is correct.', 's3-media-sync'),
+                /* translators: %1$s: AWS region identifier, such as us-east-1. %2$s: AWS region name, such as US East (N. Virginia). */
+                __('The region "%1$s" (%2$s) appears to be invalid. Please verify your region setting is correct.', 's3-media-sync'),
                 $this->bucket->get_region()->get_identifier(),
                 $this->bucket->get_region()->get_display_name()
             );
@@ -458,7 +459,8 @@ class S3_Media_Sync_Tester {
             $error_type = "bucket_name";
             $error_message = str_replace("BUCKET_NAME_ERROR: ", "", $error_message);
             $simple_message = sprintf(
-                __('The bucket "%s" does not exist in region %s. Please verify your bucket name is correct.', 's3-media-sync'),
+                /* translators: %1$s: S3 bucket name. %2$s: AWS region name, such as US East (N. Virginia). */
+                __('The bucket "%1$s" does not exist in region %2$s. Please verify your bucket name is correct.', 's3-media-sync'),
                 $this->bucket->get_name(),
                 $this->bucket->get_region()->get_display_name()
             );
@@ -480,7 +482,8 @@ class S3_Media_Sync_Tester {
             if (strpos($complete_message, "cURL error 6: Could not resolve host") !== false) {
                 $error_type = "region";
                 $simple_message = sprintf(
-                    __('The region "%s" (%s) appears to be invalid. Please verify your region setting is correct.', 's3-media-sync'),
+                    /* translators: %1$s: AWS region identifier, such as us-east-1. %2$s: AWS region name, such as US East (N. Virginia). */
+                    __('The region "%1$s" (%2$s) appears to be invalid. Please verify your region setting is correct.', 's3-media-sync'),
                     $this->bucket->get_region()->get_identifier(),
                     $this->bucket->get_region()->get_display_name()
                 );
@@ -488,7 +491,8 @@ class S3_Media_Sync_Tester {
                        strpos($complete_message, "NoSuchBucket") !== false) {
                 $error_type = "bucket_name";
                 $simple_message = sprintf(
-                    __('The bucket "%s" does not exist in region %s. Please verify your bucket name is correct.', 's3-media-sync'),
+                    /* translators: %1$s: S3 bucket name. %2$s: AWS region name, such as US East (N. Virginia). */
+                    __('The bucket "%1$s" does not exist in region %2$s. Please verify your bucket name is correct.', 's3-media-sync'),
                     $this->bucket->get_name(),
                     $this->bucket->get_region()->get_display_name()
                 );
@@ -511,7 +515,8 @@ class S3_Media_Sync_Tester {
             if (strpos($debug_text, "REGION_ERROR:") !== false || 
                 strpos($debug_text, "Failed to resolve region endpoint") !== false) {
                 $simple_message = sprintf(
-                    __('The region "%s" (%s) appears to be invalid. Please verify your region setting is correct.', 's3-media-sync'),
+                    /* translators: %1$s: AWS region identifier, such as us-east-1. %2$s: AWS region name, such as US East (N. Virginia). */
+                    __('The region "%1$s" (%2$s) appears to be invalid. Please verify your region setting is correct.', 's3-media-sync'),
                     $this->bucket->get_region()->get_identifier(),
                     $this->bucket->get_region()->get_display_name()
                 );
@@ -521,7 +526,8 @@ class S3_Media_Sync_Tester {
                      strpos($debug_text, "Bucket not found") !== false || 
                      strpos($debug_text, "NoSuchBucket") !== false) {
                 $simple_message = sprintf(
-                    __('The bucket "%s" does not exist in region %s. Please verify your bucket name is correct.', 's3-media-sync'),
+                    /* translators: %1$s: S3 bucket name. %2$s: AWS region name, such as US East (N. Virginia). */
+                    __('The bucket "%1$s" does not exist in region %2$s. Please verify your bucket name is correct.', 's3-media-sync'),
                     $this->bucket->get_name(),
                     $this->bucket->get_region()->get_display_name()
                 );
