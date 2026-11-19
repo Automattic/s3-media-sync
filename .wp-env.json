@@ -2,6 +2,7 @@
   "plugins": [
     "."
   ],
+  "core": "WordPress/WordPress#master",
   "phpVersion": "8.4",
   "config": {
     "WP_DEBUG": true,
@@ -11,7 +12,7 @@
   "env": {
     "tests": {
       "phpVersion": "8.4",
-      "core": "WordPress/WordPress#trunk"
+      "core": "WordPress/WordPress#master"
     }
   }
 }
