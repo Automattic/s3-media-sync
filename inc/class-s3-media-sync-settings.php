@@ -661,8 +661,16 @@ class S3_Media_Sync_Settings {
 		}
 		
 		// Use the new tester class to handle all the testing logic
-		$tester = new S3_Media_Sync_Tester($this->settings);
-		$tester->run_tests();
+		try {
+			$tester = new S3_Media_Sync_Tester( $this->settings );
+			$tester->run_tests();
+		} catch ( \S3_Media_Sync\Exceptions\Invalid_Bucket_Exception $e ) {
+			add_settings_error(
+				's3_media_sync_settings',
+				's3-media-sync-test-error',
+				__( 'Save a valid bucket name before testing S3 access.', 's3-media-sync' )
+			);
+		}
 
 		// Redirect back to the settings page with the results
 		set_transient('settings_errors', get_settings_errors(), 30);

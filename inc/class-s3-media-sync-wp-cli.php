@@ -973,6 +973,11 @@ class S3_Media_Sync_WP_CLI_Command extends WP_CLI_Command {
 		$settings_handler = new S3_Media_Sync_Settings();
 		$s3_media_sync    = new S3_Media_Sync( $settings_handler );
 		$s3_media_sync->setup();
+
+		if ( null === $s3_media_sync->get_s3_client() ) {
+			WP_CLI::error( 'S3 Media Sync is not configured. Save a valid bucket, access key, secret key and region in Settings > S3 Media Sync.' );
+		}
+
 		return $s3_media_sync;
 	}
 
