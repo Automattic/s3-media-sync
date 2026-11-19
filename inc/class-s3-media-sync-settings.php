@@ -87,6 +87,7 @@ class S3_Media_Sync_Settings {
 				's3_media_sync_settings',
 				's3-media-sync-settings-error',
 				sprintf(
+					/* translators: %s: Comma-separated list of the missing field names. */
 					__( 'The following required fields are missing: %s', 's3-media-sync' ),
 					$missing_fields
 				)
@@ -124,6 +125,7 @@ class S3_Media_Sync_Settings {
 					's3_media_sync_settings',
 					's3-media-sync-settings-error',
 					sprintf(
+						/* translators: %s: AWS region identifier, such as us-east-1. */
 						__('Invalid region: %s. Please select a valid region from the dropdown.', 's3-media-sync'),
 						esc_html($input['region'])
 					)
@@ -141,7 +143,8 @@ class S3_Media_Sync_Settings {
 
 				if (strpos($error_msg, 'NoSuchBucket') !== false || strpos($error_msg, '404 Not Found') !== false) {
 					$friendly_message = sprintf(
-						__('Bucket "%s" does not exist in region %s. Please verify the bucket name and region, then use the Test S3 Access button.', 's3-media-sync'),
+						/* translators: %1$s: S3 bucket name. %2$s: AWS region name, such as US East (N. Virginia). */
+						__('Bucket "%1$s" does not exist in region %2$s. Please verify the bucket name and region, then use the Test S3 Access button.', 's3-media-sync'),
 						$input['bucket'],
 						$region->get_display_name()
 					);
@@ -149,11 +152,13 @@ class S3_Media_Sync_Settings {
 					$friendly_message = __('Invalid AWS credentials. Please check your access key and secret key, then use the Test S3 Access button.', 's3-media-sync');
 				} elseif (strpos($error_msg, 'AccessDenied') !== false) {
 					$friendly_message = sprintf(
+						/* translators: %s: S3 bucket name. */
 						__('Access denied to bucket: %s. Please check your IAM permissions, then use the Test S3 Access button.', 's3-media-sync'),
 						$input['bucket']
 					);
 				} else {
 					$friendly_message = sprintf(
+						/* translators: %s: S3 bucket name. */
 						__('Could not access bucket: %s. Please use the Test S3 Access button for detailed information.', 's3-media-sync'),
 						$input['bucket']
 					);
@@ -251,6 +256,7 @@ class S3_Media_Sync_Settings {
 				$error_msg = $e->getMessage();
 				if (strpos($error_msg, 'NoSuchBucket') !== false || strpos($error_msg, '404 Not Found') !== false) {
 					$friendly_message = sprintf(
+						/* translators: %s: S3 bucket name. */
 						__('Bucket "%s" does not exist or is in a different region. Please verify the bucket name and region, then use the Test S3 Access button.', 's3-media-sync'),
 						$bucket->get_name()
 					);
@@ -258,11 +264,13 @@ class S3_Media_Sync_Settings {
 					$friendly_message = __('Invalid AWS credentials. Please check your access key and secret key, then use the Test S3 Access button.', 's3-media-sync');
 				} elseif (strpos($error_msg, 'AccessDenied') !== false) {
 					$friendly_message = sprintf(
+						/* translators: %s: S3 bucket name. */
 						__('Access denied to bucket: %s. Please check your IAM permissions, then use the Test S3 Access button.', 's3-media-sync'),
 						$bucket->get_name()
 					);
 				} else {
 					$friendly_message = sprintf(
+						/* translators: %s: S3 bucket name. */
 						__('Could not access bucket: %s. Please use the Test S3 Access button for detailed information.', 's3-media-sync'),
 						$bucket->get_name()
 					);
@@ -283,6 +291,7 @@ class S3_Media_Sync_Settings {
 				's3_media_sync_settings',
 				's3-media-sync-settings-error',
 				sprintf(
+					/* translators: %s: Error message. */
 					__('Error validating settings: %s', 's3-media-sync'),
 					$e->getMessage()
 				)
@@ -481,6 +490,7 @@ class S3_Media_Sync_Settings {
 		if (!empty($current_value) && !isset($valid_regions[$current_value])) {
 			echo '<div class="notice notice-warning inline"><p>';
 			printf(
+				/* translators: %s: AWS region identifier, such as us-east-1. */
 				__('Warning: Current region "%s" is not valid. Please select a valid region from the dropdown.', 's3-media-sync'),
 				esc_html($current_value)
 			);
