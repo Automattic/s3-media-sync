@@ -5,6 +5,7 @@
  * Version: 1.4.1
  * Requires at least: 6.4
  * Requires PHP: 8.1
+ * Tested up to: 7.1
  * Author: Alexis Kulash, WordPress VIP
  * Text Domain: s3-media-sync
  * Domain Path: /languages/
