@@ -56,7 +56,7 @@
 		"cs": "@php ./vendor/bin/phpcs",
 		"cs-fix": "@php ./vendor/bin/phpcbf",
 		"i18n": [
-			"@php wp i18n make-pot . ./languages/s3-media-sync.pot"
+			"@php wp i18n make-pot . ./languages/s3-media-sync.pot --slug=s3-media-sync --headers='{\"Report-Msgid-Bugs-To\":\"https://github.com/Automattic/s3-media-sync/issues\"}'"
 		],
 		"lint": "parallel-lint . --exclude vendor --exclude node_modules --exclude .git",
 		"test": [
