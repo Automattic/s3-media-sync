@@ -1,65 +1,241 @@
-# Copyright (C) 2019 Alexis Kulash, WordPress VIP
+# Copyright (C) 2026 Alexis Kulash, WordPress VIP
 # This file is distributed under the same license as the S3 Media Sync plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: S3 Media Sync 1.0.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/s3-media-sync\n"
+"Project-Id-Version: S3 Media Sync 1.4.1\n"
+"Report-Msgid-Bugs-To: https://github.com/Automattic/s3-media-sync/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2019-05-21T21:26:16+00:00\n"
+"POT-Creation-Date: 2026-11-19T16:00:00+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Generator: WP-CLI 2.3.0-alpha-76dc4cf\n"
+"X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: s3-media-sync\n"
 
 #. Plugin Name of the plugin
-#: inc/class-s3-media-sync.php:77
-#: inc/class-s3-media-sync.php:78
+#: s3-media-sync.php
+#: inc/class-s3-media-sync-settings.php:52
+#: inc/class-s3-media-sync-settings.php:53
+#: inc/class-s3-media-sync-settings.php:300
 msgid "S3 Media Sync"
 msgstr ""
 
 #. Description of the plugin
+#: s3-media-sync.php
 msgid "Sync full media backups to S3."
 msgstr ""
 
 #. Author of the plugin
+#: s3-media-sync.php
 msgid "Alexis Kulash, WordPress VIP"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:105
-msgid "The credentials provided are incorrect. The AWS bucket cannot be found."
+#: inc/class-s3-media-sync-settings.php:90
+#, php-format
+msgid "The following required fields are missing: %s"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:134
+#: inc/class-s3-media-sync-settings.php:127
+#, php-format
+msgid "Invalid region: %s. Please select a valid region from the dropdown."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:144
+#, php-format
+msgid "Bucket \"%s\" does not exist in region %s. Please verify the bucket name and region, then use the Test S3 Access button."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:149
+#: inc/class-s3-media-sync-settings.php:258
+msgid "Invalid AWS credentials. Please check your access key and secret key, then use the Test S3 Access button."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:152
+#: inc/class-s3-media-sync-settings.php:261
+#, php-format
+msgid "Access denied to bucket: %s. Please check your IAM permissions, then use the Test S3 Access button."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:157
+#: inc/class-s3-media-sync-settings.php:266
+#, php-format
+msgid "Could not access bucket: %s. Please use the Test S3 Access button for detailed information."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:205
+msgid "ACLs are not allowed for this bucket. The \"Use ACLs\" setting has been automatically disabled."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:254
+#, php-format
+msgid "Bucket \"%s\" does not exist or is in a different region. Please verify the bucket name and region, then use the Test S3 Access button."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:286
+#, php-format
+msgid "Error validating settings: %s"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:303
+msgid "AWS Setup Instructions"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:304
+msgid "This plugin requires specific AWS permissions to function correctly."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:306
+msgid "View on GitHub"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:326
+#: inc/class-s3-media-sync-settings.php:331
+msgid "Test S3 Access"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:327
+msgid "Click the button below to test if your credentials have the required permissions."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:352
 msgid "Settings"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:142
+#: inc/class-s3-media-sync-settings.php:360
 msgid "S3 Access Key ID"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:151
+#: inc/class-s3-media-sync-settings.php:370
 msgid "S3 Secret Access Key"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:160
+#: inc/class-s3-media-sync-settings.php:380
 msgid "S3 Bucket Name"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:169
-msgid "S3 Region"
+#: inc/class-s3-media-sync-settings.php:390
+msgid "S3 Bucket Region"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:178
+#: inc/class-s3-media-sync-settings.php:400
+msgid "Use ACLs"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:410
 msgid "S3 Object ACL"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:222
+#: inc/class-s3-media-sync-settings.php:420
+msgid "Sync Thumbnails"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:436
+msgid "Enter the Access Key ID from your AWS IAM user."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:448
+msgid "Enter the Secret Access Key from your AWS IAM user."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:460
+msgid "Enter your S3 bucket name. It should be exactly as it appears in the AWS console."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:484
+#, php-format
+msgid "Warning: Current region \"%s\" is not valid. Please select a valid region from the dropdown."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:492
+msgid "-- Select a Region --"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:507
+msgid "Select the AWS region where your bucket is located."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:518
+msgid "Enable ACL settings for objects"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:521
+msgid "Uncheck this if your bucket has \"ACLs disabled\" setting (Object Ownership set to \"Bucket owner enforced\")."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:552
+msgid "Sync image thumbnails and size variations to S3"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:555
+msgid "When enabled, all image size variations will be uploaded to S3. Disable to only upload the original file for faster uploads."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:566
 msgid "private"
 msgstr ""
 
-#: inc/class-s3-media-sync.php:223
+#: inc/class-s3-media-sync-settings.php:567
 msgid "public-read"
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:569
+msgid "Choose \"public-read\" if you want your media to be publicly accessible, or \"private\" for restricted access."
+msgstr ""
+
+#: inc/class-s3-media-sync-settings.php:660
+msgid "You do not have sufficient permissions to access this page."
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:364
+msgid "Show Details"
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:366
+msgid "Test Steps:"
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:373
+msgid "Success! Your AWS credentials have the required permissions."
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:408
+msgid "Your AWS credentials appear to be invalid. Please verify your Access Key ID and Secret Access Key are correct."
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:424
+#: inc/class-s3-media-sync-tester.php:571
+msgid "Show Technical Details"
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:426
+#: inc/class-s3-media-sync-tester.php:573
+msgid "Debug Steps:"
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:453
+#: inc/class-s3-media-sync-tester.php:483
+#: inc/class-s3-media-sync-tester.php:514
+#, php-format
+msgid "The region \"%s\" (%s) appears to be invalid. Please verify your region setting is correct."
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:461
+#: inc/class-s3-media-sync-tester.php:491
+#: inc/class-s3-media-sync-tester.php:524
+#, php-format
+msgid "The bucket \"%s\" does not exist in region %s. Please verify your bucket name is correct."
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:497
+msgid "Error testing S3 access. Please verify your settings."
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:531
+msgid "Access denied. Check that your AWS user has sufficient permissions for S3 operations."
+msgstr ""
+
+#: inc/class-s3-media-sync-tester.php:536
+msgid "Error testing S3 access. Please verify your bucket settings and permissions."
 msgstr ""
