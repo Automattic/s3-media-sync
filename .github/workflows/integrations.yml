@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   integration-tests:
-    name: WP ${{ matrix.wordpress }} on PHP ${{ matrix.php }}${{ matrix.multisite && ' (MS)' || '' }}
+    name: WP ${{ matrix.wordpress }} on PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -85,9 +85,7 @@ jobs:
         run: npm run wp-env start
 
       - name: Run integration tests (single site)
-        if: ${{ ! matrix.multisite }}
         run: composer test:integration
 
       - name: Run integration tests (multisite)
-        if: ${{ matrix.multisite }}
         run: composer test:integration-ms
