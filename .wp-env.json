@@ -3,16 +3,11 @@
     "."
   ],
   "core": "WordPress/WordPress#master",
-  "phpVersion": "8.4",
+  "phpVersion": "8.5",
+  "testsEnvironment": false,
   "config": {
     "WP_DEBUG": true,
     "WP_DEBUG_LOG": true,
     "SCRIPT_DEBUG": true
-  },
-  "env": {
-    "tests": {
-      "phpVersion": "8.4",
-      "core": "WordPress/WordPress#master"
-    }
   }
 }

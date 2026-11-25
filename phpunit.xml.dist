@@ -17,6 +17,8 @@
 		<ini name="display_startup_errors" value="On" />
 		<ini name="memory_limit" value="2G" />
 		<ini name="xdebug.mode" value="coverage" />
+		<!-- wp-env runs as one environment, so the tests share the development site's database. The test suite drops and reinstalls every table with its prefix, so give the tests their own. wp-env's wp-config.php reads this variable. -->
+		<env name="WORDPRESS_TABLE_PREFIX" value="wptests_"/>
 	</php>
 	<coverage processUncoveredFiles="true">
 		<include>

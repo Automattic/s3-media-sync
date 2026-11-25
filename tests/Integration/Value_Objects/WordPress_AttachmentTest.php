@@ -162,7 +162,6 @@ class WordPress_AttachmentTest extends TestCase {
         ob_start();
         imagejpeg($image, null, 90); // Higher quality for better thumbnail generation
         $contents = ob_get_clean();
-        imagedestroy($image);
         return $contents;
     }
 
